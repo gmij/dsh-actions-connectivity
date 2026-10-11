@@ -22,7 +22,7 @@ on:
 permissions:
   contents: read
 
-# Serialize the complete archive/build/deploy sequence across all Issues.
+# Serialize complete archive/build/deploy; Wiki follows verified successful deployment.
 concurrency:
   group: prototype-pages
   cancel-in-progress: false
