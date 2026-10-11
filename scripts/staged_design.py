@@ -140,7 +140,7 @@ def generate_staged(original, level, out_dir, invoke):
                 channels = value.get("channels") if isinstance(value, dict) else None
                 if not isinstance(channels, list):
                     return ["channels: expected list"]
-                return [f"{item.get('id', 'unknown')}: {item.get('transport')!r}"
+                return [f"{item.get('id', 'unknown')}: {item.get('transport')!r}" if isinstance(item, dict) else f"invalid channel item: {type(item).__name__}"
                         for item in channels
                         if not isinstance(item, dict) or item.get("transport") not in IPC_TRANSPORTS]
             invalid = invalid_transports(fragment)
