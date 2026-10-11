@@ -209,11 +209,15 @@ def design_with_repair(answer, args, prompt, level):
         return write_bundle(answer, OUT / "design", level, require_current=True)
     except ValueError as error:
         (OUT / "contract-error.txt").write_text(str(error))
+        feedback = str(error)
+        if isinstance(error, json.JSONDecodeError):
+            feedback += '\n错误位置附近（仅供定位）：' + repr(answer[max(0, error.pos - 180):error.pos + 180])
+            feedback += '\n先重建并正确序列化整个 JSON，检查 modules 数组、每个 module 对象、tasks 数组的闭合。不要复制原有错误括号。所有顶层字段必须在根对象内。'
         repair = ("这是唯一一次契约修正任务。上一次输出未通过可信契约校验。请修正并重新返回完整 JSON，不是补丁。"
                   "检查全部依赖、生产者输出名/类型和模式双向映射；下游应直接消费生产者 DTO，"
                   "自己的包装请求或仓储接口必须另列外部输入或在步骤中构造，不能伪称来自生产者。"
                   "任务 depends_on 只能填 TASK ID。不得修改校验规则，不得声称已经实现。\n"
-                  + "\n校验错误：" + str(error)
+                  + "\n校验错误：" + feedback
                   + "\n协作规范：\n" + collaboration_guide()
                   + "\n下面是必须遵守的输出规范：\n" + (ROOT / 'agents/design-instructions.md').read_text()
                   + "\n当前 level 必须是 " + level
