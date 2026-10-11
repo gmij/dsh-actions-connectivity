@@ -37,6 +37,8 @@ def registry():
             raise ValueError("Invalid label or unsupported execution mode")
         if value['mode'] == 'design' and value.get('design_level') not in {'overview', 'detailed'}:
             raise ValueError('Design agent must specify its level')
+        if value.get('api') not in {None, 'anthropic-messages', 'openai-completions', 'openai-responses'}:
+            raise ValueError('Unsupported model API protocol')
         path = ROOT / value["patch"]
         if ROOT not in path.resolve().parents or not path.is_file():
             raise ValueError("Agent patch must be an existing repository file")
@@ -254,6 +256,10 @@ def run():
             "headers": {"Copilot-Integration-Id": "agentic-workflows"},
             "models": [{"id": model}], "retryPolicy": {"mode": "normal", "maxRetries": 0}}}}},
     ]
+    # Newly released models may not exist in the pinned DSH catalog.
+    # The trusted registry declares their endpoint protocol explicitly.
+    if metadata['config'].get('api'):
+        patch[1]['config']['providers']['github-copilot']['api'] = metadata['config']['api']
     # Disable executable tool providers in this initial analysis-only deployment.
     for name in ["tool-bash", "tool-pwsh", "tool-jobs", "tool-fs", "tool-fs-search", "tool-skill",
                  "tool-subagent", "tool-subagent-control", "tool-subagent-list-agents", "tool-subagent-fork",
