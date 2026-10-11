@@ -25,6 +25,10 @@ detailed：详细设计。以概要设计/需求/原型为依据，明确对照�
 
 ## 输出契约
 
+交接示例：TASK-01 的 outputs 为 {name:"page",type:"SupplierPageDto",...}；TASK-02 的 depends_on 为 ["TASK-01"]，inputs 为 {name:"page",type:"SupplierPageDto",source:"TASK-01.page",...}。depends_on 只能写 TASK-01，不能写 TASK-01.page。若 TASK-02 还需要自己的 PersistRequest、批次 ID 或仓储接口，应作为额外输入从编排器/配置/依赖注入获取，不能把 TASK-01.page 的类型改写成 PersistRequest 或仓储接口。概要级设计制品也一样：领域模型设计文档不是运行时 Repository 接口，不得用两个不同类型描述同一个交接。
+
+输出前逐项自查所有任务：depends_on 仅有 ID；每个 TASK-* 来源都找到真实 outputs.name；类型字符串与生产者完全一致；派生/包装 DTO 在本任务步骤里构造，或拆成另一个明确输出；模式与任务双向对应。
+
 只输出一个 JSON 对象，不附围栏或额外说明，最多 30 个任务；输出过大时先限定本轮可验收范围，其余作为后续里程碑，不能遗漏当前范围任务的契约。
 
 顶层必须且仅包含：level（当前角色规定为 overview 或 detailed）、summary_markdown（目标/范围/假设/待确认与里程碑）、design_markdown（相应设计正文及接口示例）、decisions（数组，可为空）、tasks（非空数组）。
