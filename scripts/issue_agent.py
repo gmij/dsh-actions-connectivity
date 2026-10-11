@@ -63,6 +63,8 @@ def select_agent(issue, agents, override=""):
 
 def fingerprint(issue, agent, config, patch):
     payload = [issue["number"], issue["title"], issue.get("body") or "", agent, config, patch]
+    if config.get("mode") == "prototype":
+        payload.append((ROOT / "agents/prototype-instructions.md").read_text())
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:24]
 
 
@@ -97,13 +99,17 @@ def build_prompt(issue, chosen):
     number = issue["number"]
     context = []
     remaining = 24000
-    for path in sorted(ROOT.rglob("*")) if chosen != "connectivity" else []:
+    paths = sorted(ROOT.rglob("*"), key=lambda p: (0 if chosen == "prototype" and any(word in p.name.lower() for word in ['design', 'style', 'token', 'component']) else 1, str(p)))
+    for path in paths if chosen != "connectivity" else []:
         if not path.is_file() or any(p in {".git", "node_modules", "__pycache__"} for p in path.parts):
             continue
         # Native dispatcher profiles are not the DSH worker's instructions.
         if path.relative_to(ROOT).parts[:2] == (".github", "agents") or (chosen == "prototype" and path.relative_to(ROOT).parts[0] in {".github", "scripts", "agents"}):
             continue
-        if path.suffix not in {".md", ".py", ".yml", ".yaml", ".json"} or path.stat().st_size > 16000:
+        suffixes = {".md", ".py", ".yml", ".yaml", ".json"}
+        if chosen == "prototype":
+            suffixes |= {".html", ".css", ".tsx", ".jsx", ".ts", ".js"}
+        if path.suffix not in suffixes or path.stat().st_size > 16000:
             continue
         text = path.read_text(errors="replace")[:remaining]
         context.append(f"\n--- {path.relative_to(ROOT)} ---\n{text}")
