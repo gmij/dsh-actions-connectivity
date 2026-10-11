@@ -15,7 +15,7 @@ from issue_agent import api, comments
 from prototype_output import CSP, LEGACY_CSP
 
 BRANCH = 'prototype-previews'
-SAFE_PATH = re.compile(r'(?:index\.html|previews/issue-[1-9]\d*/(?:runs/[1-9]\d*/)?index\.html)\Z')
+SAFE_PATH = re.compile(r'(?:index\.html|previews/issue-[1-9]\d*/(?:runs/[1-9]\d*/)?(?:index\.html|desktop\.png|mobile\.png))\Z')
 
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
@@ -89,7 +89,7 @@ def assemble(existing, issue, run_id, html):
     html = validate_html(html)
     latest = f'previews/issue-{issue}/index.html'
     version = f'previews/issue-{issue}/runs/{run_id}/index.html'
-    updated = {path: validate_html(content) if path.startswith('previews/') else content
+    updated = {path: validate_html(content) if path.endswith('index.html') and path.startswith('previews/') else content
                for path, content in existing.items()}
     updated[version] = html
     # A manual replay of an older run must not roll the latest preview backwards.
@@ -126,7 +126,7 @@ def prepare():
         return
     with archive:
         metadata = json.loads(member(archive, 'metadata.json'))
-    if metadata.get('agent') != 'prototype' or metadata.get('config', {}).get('mode') != 'prototype':
+    if metadata.get('agent') not in {'prototype','overview','detailed'}:
         output(publish='false')
         return
     issue = positive(metadata['issue_number'])
@@ -138,6 +138,16 @@ def prepare():
             output(publish='false')
             return
         html = validate_html(member(archive, 'index.html'))
+    screenshots = artifact(repo, run_id, 'prototype-screenshots', required=metadata.get('config',{}).get('mode')=='design')
+    images = {}
+    if screenshots is not None:
+        with screenshots:
+            for name in ['desktop.png','mobile.png']:
+                matches=[e for e in screenshots.infolist() if e.filename==name]
+                if len(matches)!=1 or matches[0].file_size>2000000: raise ValueError('Invalid screenshot artifact')
+                payload=screenshots.read(matches[0])
+                if not payload.startswith(b'\x89PNG\r\n\x1a\n'): raise ValueError('Expected PNG screenshot')
+                images[name]=payload
     existing = {}
     parent = None
     try:
@@ -155,13 +165,21 @@ def prepare():
             if entry['mode'] != '100644' or not SAFE_PATH.fullmatch(entry['path']):
                 raise ValueError('Preview branch contains unsupported files')
             blob = api('GET', f'/repos/{repo}/git/blobs/{entry["sha"]}')
-            if blob['size'] > 300_000:
+            if blob['size'] > (2000000 if entry['path'].endswith('.png') else 300000):
                 raise ValueError('Stored preview is too large')
-            existing[entry['path']] = base64.b64decode(blob['content']).decode('utf-8')
+            payload=base64.b64decode(blob['content'])
+            existing[entry['path']] = payload if entry['path'].endswith('.png') else payload.decode('utf-8')
     updated, latest, version = assemble(existing, issue, run_id, html)
+    for name,payload in images.items():
+        updated[version.removesuffix('index.html')+name]=payload
+        if updated[latest]==html: updated[latest.removesuffix('index.html')+name]=payload
     entries = []
     for path, content in updated.items():
-        entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'content': content})
+        if isinstance(content,bytes):
+            sha=api('POST',f'/repos/{repo}/git/blobs',{'content':base64.b64encode(content).decode(),'encoding':'base64'})['sha']
+            entries.append({'path':path,'mode':'100644','type':'blob','sha':sha})
+        else:
+            entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'content': content})
     tree_sha = api('POST', f'/repos/{repo}/git/trees', {'tree': entries})['sha']
     commit = api('POST', f'/repos/{repo}/git/commits', {'message': f'Preview Issue #{issue} from DSH run {run_id}',
                  'tree': tree_sha, 'parents': [parent] if parent else []})['sha']
@@ -174,7 +192,8 @@ def prepare():
     for path, content in updated.items():
         target = site / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding='utf-8')
+        if isinstance(content,bytes): target.write_bytes(content)
+        else: target.write_text(content, encoding='utf-8')
     output(publish='true', issue_number=issue, latest=latest.removesuffix('index.html'), version=version.removesuffix('index.html'))
 
 
