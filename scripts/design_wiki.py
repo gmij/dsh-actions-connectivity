@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 
-from issue_agent import api
+from issue_agent import api, comments
 from prototype_pages import artifact, positive, validate_run, output, member
 from design_output import write_bundle
 
@@ -62,7 +62,7 @@ def rewrite(text, prefix, names):
     return re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replace, text)
 
 
-def assemble(existing, state, repo, issue, run_id, role, raw):
+def assemble(existing, state, repo, issue, run_id, role, raw, preview=None):
     positive(issue); positive(run_id); state_validate(state)
     if role not in {'overview', 'detailed'}:
         raise ValueError('Unsupported wiki role')
@@ -73,7 +73,8 @@ def assemble(existing, state, repo, issue, run_id, role, raw):
         docs = {str(p.relative_to(bundle)): p.read_text() for p in bundle.rglob('*.md') if p.name != 'README.md'}
     prefix = base(issue, role)
     names = {'design.md': '', 'task-contracts.md': '-Tasks', 'decisions.md': '-Decisions', 'overview-update.md': '-Overview-Update'}
-    names.update({'milestones.md': '-Milestones', 'ui.md': '-UI', 'documentation.md': '-Documentation'})
+    names.update({'milestones.md': '-Milestones', 'ui.md': '-UI', 'documentation.md': '-Documentation', 'api-contracts.md':'-APIs','frontend-bindings.md':'-Bindings'})
+    names.update({name: '-' + Path(name).stem for name in docs if name.startswith('apis/')})
     names.update({name: '-' + Path(name).stem for name in docs if name.startswith('modules/')})
     result = dict(existing)
     key = f'{issue}-{role}'
@@ -85,6 +86,8 @@ def assemble(existing, state, repo, issue, run_id, role, raw):
             if filename in existing and MARKER not in existing[filename]:
                 raise ValueError('Refusing to overwrite an unmanaged wiki page: ' + filename)
             nav = f'[文档目录]({wiki_link(repo, "DSH-Documents")}) · [本设计]({wiki_link(repo, variant)}) · [版本记录]({wiki_link(repo, prefix + "-History")})'
+            if preview and (name=='ui.md' or name.startswith('modules/') and '## 前端与界面设计' in text and '### UI-' in text):
+                text = f'[打开本轮交互原型]({preview})\n\n![桌面界面]({preview}desktop.png)\n\n[查看手机界面图]({preview}mobile.png)\n\n' + text
             provenance = f'来源：[Issue #{issue}](https://github.com/{repo}/issues/{issue}) · [DSH run {run_id}](https://github.com/{repo}/actions/runs/{run_id})'
             rendered = MARKER + '\n\n' + nav + '\n\n' + provenance + '\n\n' + rewrite(text, variant, names)
             if name == 'design.md' and not current:
@@ -110,6 +113,8 @@ def assemble(existing, state, repo, issue, run_id, role, raw):
         for suffix, heading in [('UI', '界面与交互'), ('Documentation', '文档交付')]:
             if p + '-' + suffix + '.md' in result:
                 sidebar += f'  - [{heading}]({p}-{suffix})\n'
+        if p + '-APIs.md' in result:
+            sidebar += f'  - [逐接口契约]({p}-APIs)\n  - [页面参数映射]({p}-Bindings)\n'
         sidebar += f'  - [任务索引与契约]({p}-Tasks)\n  - [设计决策]({p}-Decisions)\n'
         if entry['role'] == 'detailed':
             sidebar += f'  - [概要同步修订]({p}-Overview-Update)\n'
@@ -151,6 +156,11 @@ def publish():
     for value in ids:
         run_id = positive(int(value))
         run = api('GET', f'/repos/{repo}/actions/runs/{run_id}')
+        if run.get('path') == '.github/workflows/prototype-pages.yml':
+            if run.get('repository',{}).get('full_name')!=repo or run.get('head_branch')!=repository['default_branch'] or run.get('conclusion')!='success': raise ValueError('Untrusted Pages run')
+            match=re.fullmatch(r'Prototype Pages · DSH run ([1-9]\d*)',run.get('display_title',''))
+            if not match: raise ValueError('Pages source run missing')
+            run_id=int(match[1]);run=api('GET',f'/repos/{repo}/actions/runs/{run_id}')
         validate_run(run, repo, repository['default_branch'])
         archive = artifact(repo, run_id, 'issue-agent-input', required=False)
         if archive is None: continue
@@ -176,6 +186,14 @@ def publish():
     for filename, text in initial.items():
         (preview / filename).write_text(text)
     (preview / STATE).write_text(json.dumps(initial_state, ensure_ascii=False, indent=2))
+    previews={}
+    for issue,run_id,role,raw in sources:
+        rich=json.loads(raw).get('delivery')
+        if rich:
+            found=next((c for c in comments(repo,issue) if c['user']['login']=='github-actions[bot]' and f'<!-- dsh-pages:{run_id} -->' in (c.get('body') or '')),None)
+            match=re.search(r'\[打开本次交互原型\]\((https?://[^\s()]+/)\)',found['body']) if found else None
+            if not match or not match[1].endswith(f'/previews/issue-{issue}/runs/{run_id}/'): raise ValueError('Wiki requires verified Pages deployment and screenshots first')
+            previews[run_id]=match[1]
     initialization_error = False
     with tempfile.TemporaryDirectory() as folder:
         work = Path(folder)
@@ -203,7 +221,7 @@ def publish():
                 if (work / STATE).is_symlink(): raise ValueError('Refusing wiki index symlink')
                 if (work / STATE).exists(): state = state_validate(json.loads((work / STATE).read_text()))
         for issue, run_id, role, raw in sources:
-            existing, state = assemble(existing, state, repo, issue, run_id, role, raw)
+            existing, state = assemble(existing, state, repo, issue, run_id, role, raw, previews.get(run_id))
         for filename, text in existing.items():
             if Path(filename).name != filename or any(c in filename for c in '/\\\r\n\0') or not filename.endswith('.md'): raise ValueError('Unsafe stored page name')
             (preview / filename).write_text(text)
