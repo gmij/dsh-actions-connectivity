@@ -7,11 +7,21 @@ import zipfile
 from unittest.mock import patch
 
 from prototype_pages import SafeRedirect, assemble, member, page_base, prepare, validate_run
+from prototype_output import CSP, LEGACY_CSP
 
-HTML = '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="connect-src &#39;none&#39;"></head><body>demo</body></html>'
+HTML = '<!doctype html><html><head>' + CSP + '</head><body>demo</body></html>'
 
 
 class PagesTests(unittest.TestCase):
+    def test_legacy_policy_is_normalized_without_changing_restrictions(self):
+        legacy = HTML.replace(CSP, LEGACY_CSP)
+        first, _, _ = assemble({}, 14, 101, legacy)
+        for path, content in first.items():
+            if path.startswith('previews/'):
+                self.assertIn(CSP, content)
+                self.assertNotIn(LEGACY_CSP, content)
+        second, _, _ = assemble({'previews/issue-12/index.html': legacy}, 14, 102, HTML)
+        self.assertIn(CSP, second['previews/issue-12/index.html'])
     def test_accepts_official_deployment_custom_domain(self):
         self.assertEqual(page_base('http://gmij.win/dsh-actions-connectivity/'), 'http://gmij.win/dsh-actions-connectivity/')
         self.assertEqual(page_base('https://gmij.github.io/dsh-actions-connectivity'), 'https://gmij.github.io/dsh-actions-connectivity/')
