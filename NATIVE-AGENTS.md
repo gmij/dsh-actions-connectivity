@@ -1,59 +1,67 @@
-# 原生下拉框 → DSH 引擎
+# 原生下拉框 → DSH：端到端验收记录
 
-## 当前状态（2026-10-11）
+2026-10-11 已验证原生自定义 Agent 调度到真实 DSH Actions。无需 agent 标签或 Issue 表单。
 
-桥接代码与两个 Agent 配置已实现；本地 12 项测试通过（6 项桥接与 6 项原 Issue 路由）。
-尚未完成端到端验收：缺少 Agents 调度凭据，没有以原生指派运行新的 DSH 任务。
-不能把本地 API mock 或菜单显示当作端到端完成。
+## 使用方式
 
-## 运行链路
+1. 新建或打开一个 Issue，正文写实际任务。
+2. 点击右侧 Assign to Agent → Custom agent。
+3. 选择 DSH Connectivity 或 DSH Reviewer，点击 Assign。
+4. 原生会话回复调度状态；最终执行状态、结果和 Actions 链接由 github-actions[bot] 回写同一 Issue。
 
-Issue → Assign to Agent → Custom agent → DSH Reviewer / DSH Connectivity。
-GitHub 原生入口仍先启动 Copilot Cloud Agent，但它仅调用受限 MCP dispatch_issue 工具。
-工具角色固定在 profile 环境配置，只接受当前 issue_number。
-它调度 issue-agent.yml，DSH headless 加载 agents/registry.json 的角色和 patch 完成任务。
-DSH Actions 自己读取 Issue 正文、验证调度者写权限、执行并将状态/结果/运行链接写回 Issue。
-不需要标签。Copilot 的回复只表示调度状态，不替代 DSH 结果。
-原生 bot assigned 路由的跳过规则保留；MCP 使用 workflow_dispatch 明确选定角色。
-相同内容由现有 DSH fingerprint 去重；MCP 不允许 force=true。
+当前两个角色均为禁工具的 analysis 模式：连通性输出、代码分析与建议。DSH 不修改代码、不创建 PR。
+GitHub 原生入口仍会启动 Copilot 会话及自动建立 Draft PR 容器；Copilot 只调用 MCP 调度工具，不替代 DSH 执行。该空 PR 不需要合并，DSH 结果以 Issue 回写为准。
+原生 Model 下拉框选择的是调度层模型，DSH 推理模型由 agents/registry.json 设定，目前为 gpt-5.4-mini。
 
-## 一次性认证配置
+## 已验证的链路
 
-创建仅覆盖 gmij/dsh-actions-connectivity 的 fine-grained PAT：
-- Actions: Read and write（用于 workflow_dispatch）
-- Issues: Read-only（验证目标是开放 Issue）
-- Metadata: Read-only（默认）
-- 建议测试凭据有效期 7 天，验收后撤销或替换为仓库专用 GitHub App installation token。
+原生 profile → dsh-dispatch/dispatch_issue → issue-agent.yml workflow_dispatch → DSH headless → publish。
+Profile 固定 DSH_AGENT_ID，工具只接受 issue_number。
+MCP 的 dispatch_accepted 不代表任务完成；下游 DSH 必须产生 final 和 completed turn_end，publish 才写完成状态。
+相同 Issue 同一任务 fingerprint 去重，Issue 内串行，MCP 不允许 force=true。
+原生 bot assigned 的自动路由跳过规则保留，明确角色的 workflow_dispatch 正常执行。
 
-在 Repository Settings → Agents → Secrets 创建：
-COPILOT_MCP_DSH_DISPATCH_TOKEN。
-旧版 UI 可能将此显示为 copilot environment secret；必须是原生 Agent 可读取的秘密，普通 Actions repository secret 不会自动传入 Agent MCP。
-不要把 token 发到聊天、Issue、PR、配置文件或日志中。
-这是调度凭据，不是模型 API key。DSH 模型推理继续使用 Actions 临时 github.token 与 copilot-requests:write。
-内置 GitHub MCP 默认只读；当前 GitHub 连接器身份也不会自动变成原生 Agent 的调度凭据。
+| 原生选择 | Issue | DSH run | 验收结果 |
+|---|---|---|---|
+| DSH Reviewer | #6 | 38108796906 | route/agent/publish 全部成功；输出 DSH_NATIVE_REVIEWER_OK，指出空输入导致 ZeroDivisionError 并给出修复建议 |
+| DSH Connectivity | #8 | 38108953535 | route/agent/publish 全部成功；精确输出 DSH_NATIVE_BRIDGE_OK |
 
-## 验收步骤（凭据配置后）
+Reviewer 原生会话：
+https://github.com/gmij/dsh-actions-connectivity/sessions/14ce83f7-c667-4f28-b3f1-cd5ae7fe15f8
+其 MCP 调用 Input 是 {"issue_number": 6}，返回 engine=DSH、agent=reviewer。
+任务答案来自 DSH job 日志和 github-actions[bot] 回写，不是 Copilot 会话自行生成。
 
-1. 创建全新 Issue，正文要求只输出 DSH_NATIVE_BRIDGE_OK；不加标签、不使用旧 Agent 表单。
-2. 从 Assign to Agent 的 Custom agent 选择 DSH Connectivity 并提交。
-3. 检查原生 session 确实调用 dispatch_issue 并成功返回，而不是自行输出标记。
-4. 检查新的 Issue DSH agent run 的 route/agent/publish 全部成功，DSH JSONL 中有 final 与 completed turn_end。
-5. 原 Issue 必须出现 github-actions[bot] 的 DSH 完成结果及该 run 链接，输出指定标记。
-6. 新建代码审查 Issue，以同一路径选择 DSH Reviewer，验证运行 metadata 中角色 reviewer 与注册 patch 一致。
+连通性：
+https://github.com/gmij/dsh-actions-connectivity/issues/8
+https://github.com/gmij/dsh-actions-connectivity/actions/runs/38108953535
 
-GitHub 原生会话仍可能建立自身 PR 容器；不要将该 PR 当作 DSH 的交付。
-本仓库当前 DSH 角色为禁工具 analysis 模式，可执行连通性测试和审查建议，不修改仓库代码。
+审查：
+https://github.com/gmij/dsh-actions-connectivity/issues/6
+https://github.com/gmij/dsh-actions-connectivity/actions/runs/38108796906
+
+## 配置与身份
+
+.github/agents/*.agent.md：原生菜单角色与受限 MCP 工具。
+agents/registry.json：DSH 角色、persona patch、模型、是否启用。
+scripts/dsh_dispatch_mcp.py：固定仓库、固定工作流的调度桥接。
+scripts/issue_agent.py：可信路由、输入快照、DSH 运行及结果发布。
+
+调度凭据由用户保存为 Agents secret COPILOT_MCP_DSH_DISPATCH_TOKEN，已通过真实原生 MCP 调用验证可用。没有读取或记录凭据值，也没有核验其具体失效日期。
+建议 fine-grained PAT 仅限 gmij/dsh-actions-connectivity，Actions read/write、Issues read、默认 Metadata read。
+它只用于 GitHub API 调度；DSH 模型推理继续使用 Actions 临时 github.token + copilot-requests:write。
+普通 Actions repository secret 不会自动提供给原生 MCP；应使用 Agents secret。
+不在聊天、Issue、PR、源码、日志中保存 token。
+
+## 验收中修正的问题
+
+首次连通性 Issue #4 含调度层说明，DSH 将它误当成自身职责，虽成功执行但输出未满足精确标记要求，不能计入功能验收。
+已修正 worker 提示：调度阶段已完成，DSH 只处理实际任务。快照排除 .github/agents 中的原生 profile，connectivity 不加载无关仓库快照。
+新增回归测试；本地共 13 项测试通过。
+Reviewer #6 已在修改前完成正确审查，Connectivity #8 通过修正后的默认分支重新原生指派。
+
+早期 API smoke run 38107939477 证明真实 dispatch 调用成功，但下游 38107944673 的 github-actions[bot] sender 被 writer guard 跳过，没有执行 DSH。该记录不当作端到端成功，未绕过身份校验。
+测试工作流现为手动触发。
 
 参考：
 https://docs.github.com/en/copilot/reference/custom-agents-configuration
-
-## 真实 API 测试记录
-
-测试 workflow run: https://github.com/gmij/dsh-actions-connectivity/actions/runs/38107939477
-同一 MCP tools/call 实现使用 Actions 临时 token 成功调用真实 workflow_dispatch API。
-触发的下游 run: https://github.com/gmij/dsh-actions-connectivity/actions/runs/38107944673
-下游 dispatch sender 是 github-actions[bot]，现有 writer 权限检查正确跳过，agent/publish 未执行。
-因此这只证明 MCP → GitHub 调度 API 成功，不能称为 DSH 执行成功。
-原生桥接应使用有该仓库写权限的用户所持、仅限此仓库的调度 PAT，其 sender 由 GitHub 身份认证决定，不能从工具参数伪造。
-保留 writer 检查，不为此测试绕过认证。完整下拉框 → DSH 执行仍待配置 Agents secret 后验收。
-测试工作流现为仅手动触发，避免后续文档更新重复调度。
+https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/configure-secrets-and-variables
