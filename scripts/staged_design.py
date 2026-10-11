@@ -9,6 +9,8 @@ from pathlib import Path
 
 CORE = ("schema_version", "level", "summary_markdown", "design_markdown",
         "experience", "milestones", "modules", "decisions")
+IPC_TRANSPORTS = frozenset(("vscode-webview", "vscode-command", "acp", "process-stdio", "ipc"))
+
 STAGES = (
     ("core", CORE),
     ("tasks", ("task_records",)),
@@ -50,6 +52,9 @@ def stage_prompt(original, name, keys, completed, level):
                     "三个消息 Schema 使用与 HTTP 相同的内联 JSON Schema 子集；bindings 每项含"
                     "page_id、action、request_mapping、response_mapping、loading_behavior、"
                     "error_behavior、success_behavior。字段映射 source/target 明确到 schema。"
+                    "transport 字段只能是以下五个固定英文枚举之一：vscode-webview、vscode-command、acp、process-stdio、ipc。"
+                    "不能在 transport 中写中文说明、协议推测或组合选择；无法证明更具体协议时选 ipc。"
+                    "例如：{\"id\":\"IPC-01\",\"transport\":\"ipc\",\"command\":\"SessionBridge.open\",...}。"
                     "非 HTTP 交互必须在这里定义，不得用空 channels 掩盖缺失契约。",
         "prototype": "仅输出 prototype_html 字符串，必要时生成可本地运行的离线交互 HTML。"
                      "不要把 HTML 和 API Schema 放在一个 JSON 回复里。"
@@ -130,6 +135,35 @@ def generate_staged(original, level, out_dir, invoke):
             if not isinstance(fragment, dict) or set(fragment) != required:
                 got = sorted(fragment) if isinstance(fragment, dict) else type(fragment).__name__
                 raise ValueError(f"Design stage {name} schema retry fields mismatch: expected {sorted(required)}, got {got}")
+        if name == "channels":
+            def invalid_transports(value):
+                channels = value.get("channels") if isinstance(value, dict) else None
+                if not isinstance(channels, list):
+                    return ["channels: expected list"]
+                return [f"{item.get('id', 'unknown')}: {item.get('transport')!r}"
+                        for item in channels
+                        if not isinstance(item, dict) or item.get("transport") not in IPC_TRANSPORTS]
+            invalid = invalid_transports(fragment)
+            if invalid:
+                if checkpoint.exists():
+                    raise ValueError("Invalid saved channel transports: " + "; ".join(invalid))
+                repair_prompt = (
+                    stage_prompt(original, name, fields, assembled, level)
+                    + "\\n上一版 channels 有不符合枚举的 transport："
+                    + json.dumps(invalid, ensure_ascii=False)
+                    + "。transport 只能严格从 "
+                    + json.dumps(sorted(IPC_TRANSPORTS))
+                    + " 中选一个。无法证明更具体协议时使用 ipc。不要把协议解释放进 transport。"
+                    + "保留所有通道的业务设计与完整 Schema/字段映射，重新输出整个 channels JSON。"
+                    + "\\n上一版 channels（修订参考）：\\n"
+                    + json.dumps(fragment, ensure_ascii=False)[:85000]
+                )
+                try:
+                    fragment = normalize_fields(parse_stage_json(invoke(repair_prompt, name + "-transport-retry")))
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"Design stage channels transport retry invalid JSON: {exc}") from exc
+                if not isinstance(fragment, dict) or set(fragment) != required or invalid_transports(fragment):
+                    raise ValueError("Design stage channels transport retry still violates fields/transport enum")
         if name == "core" and (fragment.get("level") != level or fragment.get("schema_version") != 2):
             raise ValueError("Invalid design schema/version or level in core stage")
         assembled.update(fragment)
