@@ -134,3 +134,7 @@ JSON 契约由可信脚本校验，失败不会冒充设计成功；正文和任
 `Design Wiki` 在 Issue DSH agent 成功结束后校验本仓库默认分支上的来源，跳过非设计角色，再把设计交付同步为可直接阅读的 Wiki 页面：文档目录、侧栏、概要/详细设计、逐任务契约、设计决策、独立模块、概要同步修订与历史版本。保留人工页面及 Home/侧栏中的人工内容；不执行模型输出。最新页面与按 DSH run 固定的版本同时保存，补发旧运行不会倒退最新版本。Wiki 的设计完成不代表业务验收通过。
 
 发布成功后才在原 Issue 写入真实 Wiki 链接。同步失败时仍保留可检查的 `design-wiki-preview`，修复后重跑发布工作流即可，无需重新调用模型。Actions → Design Wiki → Run workflow 可输入逗号分隔的成功运行 ID；dry_run 只生成预览。首次启用 Wiki 后，需要在 Wiki 中创建首个 Home 页面以初始化 Wiki Git 后端。默认使用本仓库 GITHUB_TOKEN；若 Wiki 写权限不支持该身份，可配置仅覆盖本仓库的 `WIKI_PUBLISH_TOKEN`。发布器正常推送，不强制覆盖历史。
+
+### Wiki 与协作规范验证（2026-10-11）
+
+42 项单元测试已在本地和 Design Wiki 的真实 Actions 测试阶段通过，包含协作规范注入/任务指纹、目录及模块导航、人工页面保留、版本不可变、旧版本补发及模块调整后的侧栏。真实补发运行 [38115868477](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38115868477) 从概要 #16 和模块详细设计 #17 的成功 DSH 交付生成了 26 个预览文件。仓库 has_wiki/has_discussions 均为 true；但 Wiki Git 后端返回 repository_unavailable，匿名 Git 读取返回 401，发布尚未完成，未回写成功链接。请先在 Wiki 中保存首个 Home 页面，然后重跑此工作流；若 Home 已存在，应检查发布身份权限。当前预览已保留为 design-wiki-preview artifact，不能将其描述为已上线 Wiki。
