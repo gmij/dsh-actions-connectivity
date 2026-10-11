@@ -174,15 +174,22 @@ def prepare():
     output(publish='true', issue_number=issue, latest=latest.removesuffix('index.html'), version=version.removesuffix('index.html'))
 
 
+def page_base(url):
+    # The URL comes from deploy-pages, never from a model or an Issue field.
+    # GitHub supports custom domains and sites without Enforce HTTPS.
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.scheme not in {'http', 'https'} or not parsed.hostname or
+            parsed.username or parsed.password or parsed.port or parsed.query or parsed.fragment or
+            re.search(r'[\s<>\[\]()]', url)):
+        raise ValueError('Unexpected Pages URL')
+    return url.rstrip('/') + '/'
+
+
 def notify():
     repo = os.environ['GITHUB_REPOSITORY']
     issue = positive(int(os.environ['ISSUE_NUMBER']))
     run_id = positive(int(os.environ['SOURCE_RUN_ID']))
-    url = os.environ['PAGE_URL']
-    parsed = urllib.parse.urlsplit(url)
-    if parsed.scheme != 'https' or not parsed.hostname or not parsed.hostname.endswith('.github.io') or parsed.query or parsed.fragment:
-        raise ValueError('Unexpected Pages URL')
-    base = url.rstrip('/') + '/'
+    base = page_base(os.environ['PAGE_URL'])
     marker = f'<!-- dsh-pages:{run_id} -->'
     body = (marker + f'\n### 在线原型已发布\n\n[打开本次交互原型]({base}previews/issue-{issue}/runs/{run_id}/)'
             f' · [此任务最新原型]({base}previews/issue-{issue}/)\n\n'
