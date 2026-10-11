@@ -280,8 +280,12 @@ def run():
         answer = generate_staged(
             prompt, metadata["config"]["design_level"], OUT,
             lambda stage_prompt, stage: invoke_dsh(args, stage_prompt, 900, prefix=f"stage-{stage}-"))
+    elif metadata["config"]["mode"] == "prototype":
+        from staged_prototype import generate_prototype
+        answer = generate_prototype(prompt, OUT,
+            lambda stage_prompt, stage: invoke_dsh(args, stage_prompt, 300, prefix=f"stage-{stage}-"))
     else:
-        answer = invoke_dsh(args, prompt, 300 if metadata["config"]["mode"] == "prototype" else 180)
+        answer = invoke_dsh(args, prompt, 180)
     if metadata["config"]["mode"] == "prototype":
         from prototype_output import write_bundle
         answer = write_bundle(answer, OUT / "prototype")
