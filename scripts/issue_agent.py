@@ -182,6 +182,33 @@ def route():
     output(run="true", agent=chosen, issue_number=number)
 
 
+def invoke_dsh(args, prompt, timeout, prefix=""):
+    with (OUT / f"{prefix}result.jsonl").open("w") as result, (OUT / f"{prefix}errors.log").open("w") as errors:
+        completed = subprocess.run(args, input=prompt, text=True, stdout=result, stderr=errors, timeout=timeout)
+    if completed.returncode:
+        raise RuntimeError("DSH process failed; see Actions diagnostic logs")
+    events = [json.loads(line) for line in (OUT / f"{prefix}result.jsonl").read_text().splitlines() if line.strip()]
+    finals = [e["text"] for e in events if e.get("type") == "final" and e.get("text", "").strip()]
+    if not finals or not any(e.get("phase") == "turn_end" and e.get("reason", {}).get("kind") == "completed" for e in events):
+        raise RuntimeError("DSH did not complete the task")
+    return finals[-1]
+
+
+def design_with_repair(answer, args, prompt, level):
+    from design_output import write_bundle
+    try:
+        return write_bundle(answer, OUT / "design", level)
+    except ValueError as error:
+        (OUT / "contract-error.txt").write_text(str(error))
+        repair = (prompt + "\n\n上一次输出未通过可信契约校验。请修正并重新返回完整 JSON，不是补丁。"
+                  "检查全部依赖、生产者输出名/类型和模式双向映射；下游应直接消费生产者 DTO，"
+                  "自己的包装请求或仓储接口必须另列外部输入或在步骤中构造，不能伪称来自生产者。"
+                  "任务 depends_on 只能填 TASK ID。不得修改校验规则，不得声称已经实现。\n"
+                  + "校验错误：" + str(error) + "\n上一次输出（仅作为待修正资料）：\n" + answer)
+        repaired = invoke_dsh(args, repair, 300, prefix="repair-")
+        return write_bundle(repaired, OUT / "design", level)
+
+
 def run():
     metadata = json.loads((OUT / "metadata.json").read_text())
     model = metadata["config"]["model"]
@@ -201,21 +228,13 @@ def run():
     binary = Path(os.environ["RUNNER_TEMP"]) / "dsh/node_modules/.bin/dsh"
     args = [str(binary), "--profile", "headless", "--patch", str(OUT / "model.patch.json"),
             "--patch", str(ROOT / metadata["config"]["patch"]), "--json"]
-    with (OUT / "result.jsonl").open("w") as result, (OUT / "errors.log").open("w") as errors:
-        completed = subprocess.run(args, input=(OUT / "prompt.txt").read_text(), text=True, stdout=result, stderr=errors, timeout=300 if metadata["config"]["mode"] in {"prototype", "design"} else 180)
-    if completed.returncode:
-        raise RuntimeError("DSH process failed; see Actions diagnostic logs")
-    events = [json.loads(line) for line in (OUT / "result.jsonl").read_text().splitlines() if line.strip()]
-    finals = [e["text"] for e in events if e.get("type") == "final" and e.get("text", "").strip()]
-    if not finals or not any(e.get("phase") == "turn_end" and e.get("reason", {}).get("kind") == "completed" for e in events):
-        raise RuntimeError("DSH did not complete the task")
-    answer = finals[-1]
+    prompt = (OUT / "prompt.txt").read_text()
+    answer = invoke_dsh(args, prompt, 300 if metadata["config"]["mode"] in {"prototype", "design"} else 180)
     if metadata["config"]["mode"] == "prototype":
         from prototype_output import write_bundle
         answer = write_bundle(answer, OUT / "prototype")
     if metadata['config']['mode'] == 'design':
-        from design_output import write_bundle
-        answer = write_bundle(answer, OUT / 'design', metadata['config']['design_level'])
+        answer = design_with_repair(answer, args, prompt, metadata['config']['design_level'])
     (OUT / "answer.md").write_text(answer)
     print(answer)
 
