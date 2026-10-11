@@ -9,8 +9,10 @@ Issue 右侧 Assign to Agent → Custom agent：
 - DSH Connectivity
 
 配置位于 .github/agents/*.agent.md，无需标签。原生 Copilot 只负责调用 MCP 调度工具，实际任务交给 DSH Actions 执行。
-桥接代码已实现、本地 12 项测试通过；还需配置仓库限定的 Agents 调度凭据，再做原生指派端到端验收。
-当前未宣称原生链路已跑通。配置与验收见 [NATIVE-AGENTS.md](NATIVE-AGENTS.md)。
+原生指派端到端已验收通过：Reviewer（Issue #6 / run 38108796906）和 Connectivity（Issue #8 / run 38108953535）。
+两项均通过真实 MCP 调度并由 DSH 完成，结果回写 Issue，无需标签。本地 13 项测试通过。
+配置与证据见 [NATIVE-AGENTS.md](NATIVE-AGENTS.md)。原生 Model 选择的是调度层模型，DSH 模型由注册清单控制。
+GitHub 会自动建立 Draft PR 容器；无需合并，DSH 结果以 Issue 回写为准。
 
 ## DSH Issue 自动化
 
