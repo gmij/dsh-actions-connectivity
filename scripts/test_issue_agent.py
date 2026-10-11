@@ -80,3 +80,26 @@ class NativeWorkerSeparationTests(unittest.TestCase):
             self.assertNotIn('BUSINESS_REVIEW_SOURCE', connectivity)
             self.assertIn('dispatch is complete', connectivity)
             self.assertIn('Please return WORKER_OK', connectivity)
+
+class CollaborationTests(unittest.TestCase):
+    def test_shared_policy_is_in_actual_worker_prompt_and_fingerprint(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        import issue_agent
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'agents').mkdir()
+            guide = root / 'agents/collaboration-instructions.md'
+            guide.write_text('DISCUSSIONS_PROCESS_ISSUES_RESULTS')
+            issue = {'number': 1, 'title': 'Review', 'body': 'code'}
+            with patch.object(issue_agent, 'ROOT', root):
+                prompt = issue_agent.build_prompt(issue, 'reviewer')
+                key = issue_agent.fingerprint(issue, 'reviewer', {}, 'persona')
+                connectivity = issue_agent.build_prompt(issue, 'connectivity')
+                probe_key = issue_agent.fingerprint(issue, 'connectivity', {}, 'persona')
+                guide.write_text('REVISED_COLLABORATION_RULES')
+                self.assertNotEqual(key, issue_agent.fingerprint(issue, 'reviewer', {}, 'persona'))
+                self.assertEqual(probe_key, issue_agent.fingerprint(issue, 'connectivity', {}, 'persona'))
+            self.assertIn('DISCUSSIONS_PROCESS_ISSUES_RESULTS', prompt)
+            self.assertNotIn('DISCUSSIONS_PROCESS_ISSUES_RESULTS', connectivity)
