@@ -286,7 +286,10 @@ def run():
         from prototype_output import write_bundle
         answer = write_bundle(answer, OUT / "prototype")
     if metadata['config']['mode'] == 'design':
-        answer = design_with_repair(answer, args, prompt, metadata['config']['design_level'])
+        from design_output import write_bundle
+        # Whole-document repair would defeat the staged token budget.
+        # Keep stage checkpoints for targeted corrections.
+        answer = write_bundle(answer, OUT / "design", metadata['config']['design_level'], require_current=True)
     (OUT / "answer.md").write_text(answer)
     print(answer)
     if os.environ.get("GITHUB_OUTPUT"):
