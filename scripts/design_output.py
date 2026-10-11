@@ -22,7 +22,7 @@ def strings(values, required=True):
         text(value)
 
 
-def validate(data, level):
+def validate_legacy(data, level):
     fields = {'level', 'summary_markdown', 'design_markdown', 'decisions', 'tasks'}
     if level == 'detailed':
         fields |= {'modules', 'overview_update_markdown'}
@@ -175,7 +175,7 @@ def render(data):
     return '\n'.join(parts), '\n'.join(decisions)
 
 
-def write_bundle(raw, destination, level):
+def write_legacy_bundle(raw, destination, level):
     if len(raw) > 350000:
         raise ValueError('Design output too large')
     raw = raw.strip()
@@ -184,7 +184,7 @@ def write_bundle(raw, destination, level):
         if not match:
             raise ValueError('Expected one design JSON object')
         raw = match[1]
-    data = validate(json.loads(raw), level)
+    data = validate_legacy(json.loads(raw), level)
     contracts, decisions = render(data)
     destination.mkdir(parents=True, exist_ok=True)
     title = '概要设计' if level == 'overview' else '详细设计'
@@ -211,3 +211,202 @@ def write_bundle(raw, destination, level):
     overview = '\n\n' + data['overview_update_markdown'] if level == 'detailed' else ''
     issue_index = re.sub(r'\[([^\]]+)\]\(modules/MOD-\d{2,3}\.md\)', r'\1', module_index)
     return f'# {title}\n\n{data["summary_markdown"]}\n{issue_index}{overview}\n\n{data["design_markdown"]}{module_prose}\n\n{decisions}\n\n{contracts}'
+
+# V1 remains render-stable for already published immutable Wiki versions.
+V2_MODULE = {'id', 'title', 'responsibility', 'boundary', 'design_markdown', 'interfaces_markdown', 'frontend', 'backend', 'documentation', 'tasks'}
+V2_TASK = TASK | {'layer', 'milestone_id'}
+MILESTONE = {'id', 'title', 'user_value', 'user_journey', 'depends_on', 'task_ids', 'integration_tests', 'release_criteria', 'release_plan', 'rollback_plan'}
+PAGE = {'id', 'title', 'route', 'layout_markdown', 'user_actions', 'states', 'api_bindings', 'acceptance', 'prototype_reference'}
+LAYERS = {'frontend', 'backend', 'integration', 'documentation'}
+
+
+def validate_v2(data, level):
+    fields = {'schema_version', 'level', 'summary_markdown', 'design_markdown', 'experience', 'milestones', 'modules', 'decisions'}
+    if level == 'detailed': fields.add('overview_update_markdown')
+    if not isinstance(data, dict) or set(data) != fields or type(data['schema_version']) is not int or data['schema_version'] != 2 or data['level'] != level:
+        raise ValueError('V2 requires milestone-first, module-owned tasks; no top-level tasks')
+    experience = data['experience']
+    if not isinstance(experience, dict) or set(experience) != {'interaction_mode', 'rationale'} or experience['interaction_mode'] not in {'web', 'api', 'cli'}:
+        raise ValueError('Explicit user interaction mode is required')
+    text(experience['rationale'])
+    if not isinstance(data['modules'], list) or not 1 <= len(data['modules']) <= 20:
+        raise ValueError('Expected 1–20 responsibility-based modules')
+    flat, legacy_modules, page_ids = [], [], set()
+    for module in data['modules']:
+        if not isinstance(module, dict) or set(module) != V2_MODULE:
+            raise ValueError('V2 module must own frontend/backend/docs design and its tasks')
+        text(module['interfaces_markdown'], 30000)
+        frontend, backend, docs = module['frontend'], module['backend'], module['documentation']
+        if not isinstance(frontend, dict) or set(frontend) != {'applicable', 'reason', 'design_markdown', 'pages'} or type(frontend['applicable']) is not bool:
+            raise ValueError('Explicit frontend applicability and page contracts are required')
+        text(frontend['reason']); text(frontend['design_markdown'], 30000)
+        if not isinstance(frontend['pages'], list) or len(frontend['pages']) > 20 or bool(frontend['pages']) != frontend['applicable']:
+            raise ValueError('Frontend pages must match applicability')
+        for page in frontend['pages']:
+            if not isinstance(page, dict) or set(page) != PAGE or not isinstance(page['id'], str) or not re.fullmatch(r'UI-\d{2,3}', page['id']) or page['id'] in page_ids:
+                raise ValueError('Page IDs must be unique UI-01 identifiers')
+            page_ids.add(page['id'])
+            for key in ['title', 'route', 'layout_markdown', 'prototype_reference']: text(page[key])
+            for key in ['user_actions', 'states', 'api_bindings', 'acceptance']: strings(page[key])
+            if not {'loading', 'empty', 'error', 'success'} <= set(page['states']):
+                raise ValueError('Every web page needs loading/empty/error/success states')
+        if not isinstance(backend, dict) or set(backend) != {'applicable', 'reason', 'design_markdown'} or type(backend['applicable']) is not bool:
+            raise ValueError('Explicit backend design is required')
+        text(backend['reason']); text(backend['design_markdown'], 30000)
+        if not isinstance(docs, dict) or set(docs) != {'deliverables', 'acceptance'}:
+            raise ValueError('Module documentation deliverables and acceptance are required')
+        strings(docs['deliverables']); strings(docs['acceptance'])
+        if not isinstance(module['tasks'], list) or not module['tasks']:
+            raise ValueError('Tasks must be nested in their owning module')
+        for task in module['tasks']:
+            if not isinstance(task, dict) or set(task) != V2_TASK or task['layer'] not in LAYERS:
+                raise ValueError('Each task needs explicit layer and MVP milestone_id')
+            if task['layer'] == 'frontend' and not frontend['applicable']:
+                raise ValueError('Frontend task requires applicable page design in its module')
+            if task['layer'] == 'backend' and not backend['applicable']:
+                raise ValueError('Backend task requires applicable backend design in its module')
+            flat.append(task)
+        legacy_modules.append({k: module[k] for k in ['id', 'title', 'responsibility', 'boundary', 'design_markdown']} | {'task_ids': [t['id'] for t in module['tasks']]})
+    # Reuse the proven IO/type/DAG/pattern validation without changing V1 rendering.
+    legacy = {k: data[k] for k in ['level', 'summary_markdown', 'design_markdown', 'decisions']}
+    legacy['tasks'] = [{k: t[k] for k in TASK} for t in flat]
+    if level == 'detailed': legacy.update(modules=legacy_modules, overview_update_markdown=data['overview_update_markdown'])
+    validate_legacy(legacy, level)
+    if len({m['id'] for m in legacy_modules}) != len(legacy_modules): raise ValueError('Duplicate module ID')
+    for m in legacy_modules:
+        if not re.fullmatch(r'MOD-\d{2,3}', m['id']): raise ValueError('Invalid module ID')
+        for key in ['title', 'responsibility', 'boundary']: text(m[key])
+        text(m['design_markdown'], 30000)
+    milestones = data['milestones']
+    if not isinstance(milestones, list) or not 1 <= len(milestones) <= 10: raise ValueError('Expected 1–10 MVP milestones')
+    tasks = {t['id']: t for t in flat}
+    indexed, owned = {}, set()
+    for milestone in milestones:
+        if not isinstance(milestone, dict) or set(milestone) != MILESTONE or not re.fullmatch(r'MS-\d{2,3}', milestone['id']) or milestone['id'] in indexed:
+            raise ValueError('Invalid or duplicate milestone')
+        indexed[milestone['id']] = milestone
+        for key in ['title', 'user_value', 'release_plan', 'rollback_plan']: text(milestone[key])
+        for key in ['user_journey', 'task_ids', 'release_criteria']: strings(milestone[key])
+        strings(milestone['depends_on'], required=False)
+        for identifier in milestone['task_ids']:
+            if identifier not in tasks or identifier in owned or tasks[identifier]['milestone_id'] != milestone['id']:
+                raise ValueError('Every task must belong to exactly one consistent milestone')
+            owned.add(identifier)
+        layers = {tasks[t]['layer'] for t in milestone['task_ids']}
+        needed = {'backend', 'integration', 'documentation'} | ({'frontend'} if experience['interaction_mode'] == 'web' else set())
+        if not needed <= layers: raise ValueError(f"{milestone['id']}: MVP release must include {sorted(needed)} tasks, got {sorted(layers)}")
+        tests = milestone['integration_tests']
+        if not isinstance(tests, list) or not tests: raise ValueError('Milestone integration tests are required')
+        for test in tests:
+            if not isinstance(test, dict) or set(test) != {'scenario', 'preconditions', 'steps', 'expected'}: raise ValueError('Invalid milestone integration test')
+            text(test['scenario']); strings(test['preconditions']); strings(test['steps']); strings(test['expected'])
+    if owned != set(tasks): raise ValueError('Unassigned milestone tasks')
+    done, active = set(), set()
+    def visit(mid):
+        if mid in active: raise ValueError('Cyclic milestone dependency')
+        if mid in done: return
+        active.add(mid)
+        deps = indexed[mid]['depends_on']
+        if len(deps) != len(set(deps)): raise ValueError('Duplicate milestone dependency')
+        for dep in deps:
+            if dep not in indexed: raise ValueError('Unknown milestone dependency')
+            visit(dep)
+        active.remove(mid); done.add(mid)
+    for mid in indexed: visit(mid)
+    def ancestors(mid):
+        result = set(indexed[mid]['depends_on'])
+        for dep in list(result): result |= ancestors(dep)
+        return result
+    for task in flat:
+        allowed = ancestors(task['milestone_id']) | {task['milestone_id']}
+        if any(tasks[dep]['milestone_id'] not in allowed for dep in task['depends_on']):
+            raise ValueError('Task cannot depend on a future/unrelated milestone')
+    if experience['interaction_mode'] == 'web' and not page_ids: raise ValueError('Interactive web MVP requires page design')
+    return data
+
+
+def validate(data, level):
+    return validate_v2(data, level) if isinstance(data, dict) and 'schema_version' in data else validate_legacy(data, level)
+
+
+def render_milestones(data):
+    parts = ['# MVP 里程碑与集成发布\n', '交付单位是可交互的里程碑；模块内任务是实现单元，单任务完成不代表 MVP 已验收或发布。\n']
+    for m in data['milestones']:
+        parts += [f"## {m['id']} · {m['title']}\n", '用户价值：' + m['user_value'], '\n前置里程碑：' + ('、'.join(m['depends_on']) or '无'), '\n### 用户操作闭环\n']
+        parts += [f'{i}. {s}' for i, s in enumerate(m['user_journey'], 1)]
+        parts += ['\n### 跨模块交付任务\n\n| 模块 | 任务 | 层次 | 目标 |\n|---|---|---|---|']
+        for module in data['modules']:
+            for task in module['tasks']:
+                if task['milestone_id'] == m['id']:
+                    parts.append('| ' + ' | '.join(cell(v) for v in [module['id'], task['id'], task['layer'], task['goal']]) + ' |')
+        for test in m['integration_tests']:
+            parts += ['\n### 集成验收：' + test['scenario'], '\n前置条件：' + '；'.join(test['preconditions']), '\n操作：']
+            parts += [f'{i}. {s}' for i, s in enumerate(test['steps'], 1)]
+            parts += ['\n预期：'] + ['- ' + s for s in test['expected']]
+        parts += ['\n### 发布门槛\n'] + ['- ' + s for s in m['release_criteria']]
+        parts += ['\n### 发布方案\n', m['release_plan'], '\n### 回滚方案\n', m['rollback_plan'], '\n']
+    return '\n'.join(parts)
+
+
+def render_frontend(module):
+    f = module['frontend']
+    parts = ['## 前端与界面设计\n', f['reason'], f['design_markdown']]
+    for page in f['pages']:
+        parts += [f"\n### {page['id']} · {page['title']}\n", '路由：' + page['route'], '\n布局与组件：\n' + page['layout_markdown'], '\n原型依据：' + page['prototype_reference']]
+        for key, heading in [('user_actions', '操作与数据流'), ('states', '界面状态'), ('api_bindings', 'API/任务契约映射'), ('acceptance', '界面验收')]:
+            parts += ['\n#### ' + heading + '\n'] + ['- ' + s for s in page[key]]
+    return '\n'.join(parts)
+
+
+def write_v2_bundle(data, destination, level):
+    validate_v2(data, level)
+    destination.mkdir(parents=True, exist_ok=True)
+    (destination / 'modules').mkdir(exist_ok=True)
+    all_tasks = [t for m in data['modules'] for t in m['tasks']]
+    owners = {t['id']: m['id'] for m in data['modules'] for t in m['tasks']}
+    title = '概要设计' if level == 'overview' else '详细设计'
+    index = '## 模块导航\n\n| 模块 | 职责与边界 | 涉及里程碑 | 上游模块 |\n|---|---|---|---|\n'
+    module_summaries = []
+    ui = ['# 界面与交互设计\n']
+    documentation = ['# 文档交付与验收\n']
+    task_index = ['# 任务索引（按模块）\n\n逐任务完整契约在所属模块中；里程碑是集成验收与发布单位。\n']
+    for module in data['modules']:
+        deps = sorted({owners[dep] for t in module['tasks'] for dep in t['depends_on'] if owners[dep] != module['id']})
+        mids = sorted({t['milestone_id'] for t in module['tasks']})
+        index += '| ' + ' | '.join(cell(v) for v in [f"[{module['id']} · {module['title']}](modules/{module['id']}.md)", module['responsibility'] + '；' + module['boundary'], '、'.join(mids), '、'.join(deps) or '无']) + ' |\n'
+        contracts, decisions = render({'tasks': module['tasks'], 'decisions': [d for d in data['decisions'] if set(d['tasks']) & {t['id'] for t in module['tasks']}]})
+        frontend = render_frontend(module)
+        docs = '\n'.join(['## 文档交付\n'] + ['- ' + s for s in module['documentation']['deliverables']] + ['\n验收：'] + ['- ' + s for s in module['documentation']['acceptance']])
+        body = f"# {module['id']} · {module['title']}\n\n职责：{module['responsibility']}\n\n边界：{module['boundary']}\n\n里程碑：{'、'.join(mids)}\n\n上游模块：{'、'.join(deps) or '无'}\n\n## 模块整体设计\n\n{module['design_markdown']}\n\n{frontend}\n\n## 后端设计\n\n{module['backend']['reason']}\n\n{module['backend']['design_markdown']}\n\n## 前后端与跨模块契约\n\n{module['interfaces_markdown']}\n\n{docs}\n\n## 模块内任务\n\n"
+        # Task ownership and milestone/layer headings accompany the detailed contracts.
+        body += '\n'.join(f"- {t['id']}：{t['title']}；{t['layer']}；{t['milestone_id']}" for t in module['tasks']) + '\n\n' + contracts + '\n\n' + decisions
+        (destination / 'modules' / (module['id'] + '.md')).write_text(body, encoding='utf-8')
+        ui += [f"\n## {module['id']} · {module['title']}\n", frontend]
+        documentation += [f"\n## {module['id']} · {module['title']}\n", docs]
+        task_index += [f"\n## [{module['id']} · {module['title']}](modules/{module['id']}.md)\n", '| 任务 | 层次 | MVP 里程碑 | 依赖 |\n|---|---|---|---|']
+        task_index += ['| ' + ' | '.join(cell(v) for v in [t['id'] + ' · ' + t['title'], t['layer'], t['milestone_id'], '、'.join(t['depends_on']) or '无']) + ' |' for t in module['tasks']]
+        module_summaries.append(f"### {module['id']} · {module['title']}\n\n{module['responsibility']}；{module['boundary']}")
+    milestone_index = '## MVP 里程碑\n\n' + '\n'.join(f"- {m['id']} · {m['title']}：{m['user_value']}" for m in data['milestones'])
+    nav = '## 阅读导航\n\n- [MVP 里程碑、集成验收与发布](milestones.md)\n- [界面与交互](ui.md)\n- [文档交付](documentation.md)\n- [按模块的任务索引](task-contracts.md)\n- [设计决策](decisions.md)\n'
+    if level == 'detailed': nav += '- [同步后的概要模块章节](overview-update.md)\n'
+    root = f'# {title}\n\n{data["summary_markdown"]}\n\n{milestone_index}\n\n{index}\n\n## 跨模块总体设计\n\n{data["design_markdown"]}\n\n{nav}'
+    _, decisions = render({'tasks': all_tasks, 'decisions': data['decisions']})
+    outputs = {'design.md': root, 'milestones.md': render_milestones(data), 'ui.md': '\n'.join(ui), 'documentation.md': '\n'.join(documentation), 'task-contracts.md': '\n'.join(task_index), 'decisions.md': decisions, 'design.json': json.dumps(data, ensure_ascii=False, indent=2), 'README.md': '设计提案。阅读顺序：design.md → milestones.md → modules/MOD-xx.md → 模块内任务。ui.md 和 documentation.md 汇总界面及文档交付。开发、测试及发布尚未执行。\n'}
+    if level == 'detailed': outputs['overview-update.md'] = data['overview_update_markdown']
+    for name, body in outputs.items(): (destination / name).write_text(body, encoding='utf-8')
+    # Issue feedback introduces the whole plan; detailed contracts stay in modules/Wiki.
+    return re.sub(r'\[([^\]]+)\]\((?:modules/)?[^)]+\.md\)', r'\1', root) + '\n\n' + render_milestones(data) + '\n\n' + '\n\n'.join(module_summaries)
+
+
+def write_bundle(raw, destination, level, require_current=False):
+    if len(raw) > 350000: raise ValueError('Design output too large')
+    cleaned = raw.strip()
+    if cleaned.startswith('```'):
+        match = re.fullmatch(r'```(?:json)?\s*\n(.*?)\n```', cleaned, re.S)
+        if not match: raise ValueError('Expected one design JSON object')
+        cleaned = match[1]
+    data = json.loads(cleaned)
+    if require_current and (not isinstance(data, dict) or data.get('schema_version') != 2):
+        raise ValueError('New designs must use schema_version=2, milestones and module-owned tasks; V1 is only for historical Wiki artifacts')
+    if isinstance(data, dict) and 'schema_version' in data: return write_v2_bundle(data, destination, level)
+    return write_legacy_bundle(raw, destination, level)
