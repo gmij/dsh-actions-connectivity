@@ -25,6 +25,13 @@ def example():
 
 
 class DesignTests(unittest.TestCase):
+    def test_long_design_body_is_allowed_with_a_document_size_limit(self):
+        data = example(); data['design_markdown'] = '详细设计正文' * 4000
+        validate(data, 'detailed')
+        data['design_markdown'] = 'x' * 100001
+        with self.assertRaises(ValueError):
+            validate(data, 'detailed')
+
     def test_repair_consumes_error_feedback_and_revalidates_whole_design(self):
         invalid = example()
         invalid['tasks'][1]['inputs'][0]['type'] = 'WrapperRequest'
