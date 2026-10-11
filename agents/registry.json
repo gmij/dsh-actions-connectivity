@@ -30,7 +30,7 @@
     },
     "overview": {
       "name": "概要设计",
-      "description": "架构、模块边界、领域模型、接口和里程碑",
+      "description": "可交互 MVP 里程碑、架构、模块边界、前后端契约与发布门槛",
       "enabled": true,
       "label": "agent:overview",
       "patch": "agents/overview.patch.json",
@@ -40,7 +40,7 @@
     },
     "detailed": {
       "name": "详细设计",
-      "description": "逐任务输入输出、依赖、模式依据、异常幂等和验收测试",
+      "description": "模块优先的前后端详细设计、模块内任务契约、界面文档、里程碑集成发布",
       "enabled": true,
       "label": "agent:detailed",
       "patch": "agents/detailed.patch.json",
