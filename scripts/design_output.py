@@ -189,6 +189,7 @@ def write_bundle(raw, destination, level):
     destination.mkdir(parents=True, exist_ok=True)
     title = '概要设计' if level == 'overview' else '详细设计'
     module_index = ''
+    module_prose = ''
     if level == 'detailed':
         owners = {identifier: module['id'] for module in data['modules'] for identifier in module['task_ids']}
         module_index = '\n## 模块索引与依赖\n\n| 模块 | 职责与边界 | 任务 | 上游模块 |\n|---|---|---|---|\n'
@@ -200,6 +201,7 @@ def write_bundle(raw, destination, level):
             module_contracts, module_decisions = render(subset)
             body = f"# {module['id']} · {module['title']}\n\n职责：{module['responsibility']}\n\n边界：{module['boundary']}\n\n上游模块：{'、'.join(deps) or '无'}\n\n{module['design_markdown']}\n\n{module_contracts}\n\n{module_decisions}"
             (destination / 'modules' / f"{module['id']}.md").write_text(body, encoding='utf-8')
+            module_prose += f"\n\n## {module['id']} · {module['title']}\n\n{module['design_markdown']}"
         (destination / 'overview-update.md').write_text(data['overview_update_markdown'], encoding='utf-8')
     (destination / 'design.md').write_text(f'# {title}\n\n{data["summary_markdown"]}\n{module_index}\n{data["design_markdown"]}', encoding='utf-8')
     (destination / 'task-contracts.md').write_text(contracts, encoding='utf-8')
@@ -207,4 +209,5 @@ def write_bundle(raw, destination, level):
     (destination / 'design.json').write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     (destination / 'README.md').write_text('设计提案，尚未执行代码开发。design.md 为正文与模块索引，task-contracts.md 为逐任务输入输出及验收，decisions.md 为选择理由，design.json 为可校验契约。详细设计的 modules/ 为各模块独立文档，overview-update.md 为同步修订后的概要模块章节（未自动覆盖仓库文件）。\n', encoding='utf-8')
     overview = '\n\n' + data['overview_update_markdown'] if level == 'detailed' else ''
-    return f'# {title}\n\n{data["summary_markdown"]}\n{module_index}{overview}\n\n{data["design_markdown"]}\n\n{decisions}\n\n{contracts}'
+    issue_index = re.sub(r'\[([^\]]+)\]\(modules/MOD-\d{2,3}\.md\)', r'\1', module_index)
+    return f'# {title}\n\n{data["summary_markdown"]}\n{issue_index}{overview}\n\n{data["design_markdown"]}{module_prose}\n\n{decisions}\n\n{contracts}'
