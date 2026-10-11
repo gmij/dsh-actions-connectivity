@@ -123,7 +123,9 @@ def git(directory, *args):
     env.update(GIT_TERMINAL_PROMPT='0', GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0='AUTHORIZATION: basic ' + base64.b64encode(('x-access-token:' + token).encode()).decode())
     completed = subprocess.run(['git', *args], cwd=directory, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=90)
     if completed.returncode:
-        raise RuntimeError('Wiki Git operation failed; confirm Wiki is initialized and the publishing identity can write it. No credentials are included in diagnostics.')
+        error = completed.stderr.lower()
+        reason = 'repository_unavailable' if 'not found' in error else ('access_denied' if any(s in error for s in ['403', 'permission denied', 'authentication failed']) else 'git_operation_failed')
+        raise RuntimeError('Wiki Git operation failed: ' + reason + '. No credentials are included in diagnostics.')
     return completed.stdout
 
 
@@ -171,7 +173,19 @@ def publish():
         if ready and not dry:
             try:
                 git(work, 'clone', '--depth=1', f'https://github.com/{repo}.wiki.git', '.')
-            except RuntimeError:
+            except RuntimeError as error:
+                print(str(error))
+                # Public read probe distinguishes missing initialization from token access.
+                import urllib.request
+                import urllib.error
+                request = urllib.request.Request(f'https://github.com/{repo}.wiki.git/info/refs?service=git-upload-pack', headers={'User-Agent': 'DSH-Wiki-Publisher'})
+                try:
+                    with urllib.request.urlopen(request, timeout=30) as response:
+                        print('Wiki anonymous Git read HTTP status:', response.status)
+                except urllib.error.HTTPError as probe:
+                    print('Wiki anonymous Git read HTTP status:', probe.code)
+                except urllib.error.URLError:
+                    print('Wiki anonymous Git read unavailable')
                 ready = False
                 initialization_error = True
             if ready:
