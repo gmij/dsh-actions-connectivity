@@ -2,6 +2,10 @@
 import json
 import re
 
+POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; base-uri 'none'; object-src 'none';"
+CSP = '<meta http-equiv="Content-Security-Policy" content="' + POLICY + '">'
+LEGACY_CSP = '<meta http-equiv="Content-Security-Policy" content="' + POLICY.replace("'", '&#39;') + '">'
+
 
 def write_bundle(raw, destination):
     raw = raw.strip()
@@ -35,8 +39,7 @@ def write_bundle(raw, destination):
     (destination / 'design.md').write_text(data['design_markdown'])
     if data['needs_prototype']:
         # Interactions run only in the viewer's browser; block outbound requests.
-        csp = '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;unsafe-inline&#39;; style-src &#39;unsafe-inline&#39;; img-src data:; connect-src &#39;none&#39;; form-action &#39;none&#39;; frame-src &#39;none&#39;; base-uri &#39;none&#39;; object-src &#39;none&#39;">'
-        html = re.sub(r'(<head\b[^>]*>)', lambda match: match.group(1) + csp, html, count=1, flags=re.I)
+        html = re.sub(r'(<head\b[^>]*>)', lambda match: match.group(1) + CSP, html, count=1, flags=re.I)
         (destination / 'index.html').write_text(html)
     elif (destination / 'index.html').exists():
         (destination / 'index.html').unlink()
