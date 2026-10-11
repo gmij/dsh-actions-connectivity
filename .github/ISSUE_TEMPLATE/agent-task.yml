@@ -6,8 +6,10 @@ body:
     id: agent
     attributes:
       label: Agent
-      description: 选项对应 agents/registry.json；现有 Issue 可添加 agent:* 标签指派
+      description: 已有 Issue 可在右侧 Assign to Agent 的 Custom agent 下拉框选择；此处供新建任务选择
       options:
+        - overview
+        - detailed
         - reviewer
         - prototype
         - connectivity
