@@ -381,3 +381,5 @@ decisions 严格使用 id/pattern/problem/rationale/alternatives/tradeoffs/imple
     }
   ]
 }
+
+特别注意文档/集成任务的多生产者输入：source="TASK-01/TASK-04 输出"、"TASK-01和TASK-04 输出" 均非法。若任务依赖多个输出，必须拆成多个 inputs，每项source是唯一准确的 TASK-ID.outputName 且type完全匹配。需要汇编成文档或包装对象时在本任务steps中组合，不要把组合后的对象伪称是任一生产者直接输出；文档文件或接口规范也可以来自明确的外部设计基线，不能冒充运行时DTO。
