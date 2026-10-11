@@ -14,6 +14,8 @@ class PrototypeTests(unittest.TestCase):
             root=Path(tmp)
             write_bundle(json.dumps(self.data()), root)
             self.assertTrue((root/'index.html').is_file())
+            self.assertIn('Content-Security-Policy', (root/'index.html').read_text())
+            self.assertIn('connect-src', (root/'index.html').read_text())
             self.assertEqual(set(p.name for p in root.iterdir()), {'index.html','decision.json','requirements.md','design.md','README.md'})
             report=write_bundle(json.dumps(self.data(False)), root)
             self.assertFalse((root/'index.html').exists())
