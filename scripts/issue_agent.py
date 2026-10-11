@@ -225,7 +225,7 @@ def design_with_repair(answer, args, prompt, level):
                                 replacements.append({'name': identifier.replace('-', '').lower() + '_' + product['name'], 'type': product['type'], 'source': identifier + '.' + product['name'], 'required': value.get('required', True), 'validation': '直接消费该生产者输出；如需包装，在本任务步骤中构造，保留字段校验。'})
                         if replacements:
                             feedback += '\n' + task['id'] + '.' + value['name'] + ' 是非法组合来源。删除该组合输入，选择以下实际生产者输出作为分别独立的 inputs，完整保留其他输入；所用生产者加入 depends_on。不要把斜杠改为“和/或”仍塞进一个 source：\n' + json.dumps(replacements, ensure_ascii=False)
-        except (ValueError, KeyError, TypeError):
+        except (ValueError, KeyError, TypeError, AttributeError):
             pass
         if isinstance(error, json.JSONDecodeError):
             feedback += '\n错误位置附近（仅供定位）：' + repr(answer[max(0, error.pos - 180):error.pos + 180])
