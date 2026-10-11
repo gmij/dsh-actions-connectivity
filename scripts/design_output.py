@@ -226,6 +226,7 @@ def normalize_wire(data):
         return data
     fields = {'schema_version', 'level', 'summary_markdown', 'design_markdown', 'experience', 'milestones', 'modules', 'decisions', 'task_records', 'page_records'}
     if data.get('level') == 'detailed': fields.add('overview_update_markdown')
+    if 'delivery' in data: fields.add('delivery')
     if set(data) != fields: raise ValueError('Wire fields must exactly match the supplied V2 transport schema')
     keys = {'id', 'title', 'responsibility', 'boundary', 'design_markdown', 'interfaces_markdown', 'frontend_applicable', 'frontend_reason', 'frontend_markdown', 'backend_applicable', 'backend_reason', 'backend_markdown', 'documentation_deliverables', 'documentation_acceptance'}
     if not isinstance(data['modules'], list) or not 1 <= len(data['modules']) <= 20: raise ValueError('Expected bounded modules')
@@ -254,6 +255,7 @@ def normalize_wire(data):
 def validate_v2(data, level):
     fields = {'schema_version', 'level', 'summary_markdown', 'design_markdown', 'experience', 'milestones', 'modules', 'decisions'}
     if level == 'detailed': fields.add('overview_update_markdown')
+    if isinstance(data, dict) and 'delivery' in data: fields.add('delivery')
     if not isinstance(data, dict) or set(data) != fields or type(data['schema_version']) is not int or data['schema_version'] != 2 or data['level'] != level:
         raise ValueError('V2 requires milestone-first, module-owned tasks; no top-level tasks')
     experience = data['experience']
@@ -425,6 +427,10 @@ def write_v2_bundle(data, destination, level):
     outputs = {'design.md': root, 'milestones.md': render_milestones(data), 'ui.md': '\n'.join(ui), 'documentation.md': '\n'.join(documentation), 'task-contracts.md': '\n'.join(task_index), 'decisions.md': decisions, 'design.json': json.dumps(data, ensure_ascii=False, indent=2), 'README.md': '设计提案。阅读顺序：design.md → milestones.md → modules/MOD-xx.md → 模块内任务。ui.md 和 documentation.md 汇总界面及文档交付。开发、测试及发布尚未执行。\n'}
     if level == 'detailed': outputs['overview-update.md'] = data['overview_update_markdown']
     for name, body in outputs.items(): (destination / name).write_text(body, encoding='utf-8')
+    if 'delivery' in data:
+        from design_delivery import validate_delivery, write_delivery
+        validate_delivery(data)
+        write_delivery(data, destination)
     # Issue feedback introduces the whole plan; detailed contracts stay in modules/Wiki.
     return re.sub(r'\[([^\]]+)\]\((?:modules/)?[^)]+\.md\)', r'\1', root) + '\n\n' + render_milestones(data) + '\n\n' + '\n\n'.join(module_summaries)
 
@@ -439,5 +445,9 @@ def write_bundle(raw, destination, level, require_current=False):
     data = json.loads(cleaned)
     if require_current and (not isinstance(data, dict) or data.get('schema_version') != 2):
         raise ValueError('New designs must use schema_version=2, milestones and module-owned tasks; V1 is only for historical Wiki artifacts')
-    if isinstance(data, dict) and 'schema_version' in data: return write_v2_bundle(normalize_wire(data), destination, level)
+    if isinstance(data, dict) and 'schema_version' in data:
+        data = normalize_wire(data)
+        from design_delivery import validate_delivery
+        validate_delivery(data, required=require_current)
+        return write_v2_bundle(data, destination, level)
     return write_legacy_bundle(raw, destination, level)
