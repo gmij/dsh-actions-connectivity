@@ -226,7 +226,7 @@ def publish():
         artifacts = api('GET', f"/repos/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}/artifacts")['artifacts']
         bundle = next((a for a in artifacts if a['name'] == 'prototype-deliverable' and not a['expired']), None)
         if bundle:
-            text += f"\n\n[下载原型交付包（解压后打开 index.html）](https://github.com/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}/artifacts/{bundle['id']})。包含需求分析、设计说明及原型；保留 30 天。"
+            text += f"\n\n[下载需求与原型交付包](https://github.com/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}/artifacts/{bundle['id']})。需要原型时，解压后打开 index.html；无需原型时仅交付需求与判断说明。保留 30 天。"
     body = f"{marker}\n🤖 **DSH agent {status}：{os.environ['AGENT_ID']}**\n\n[后台运行记录]({run_link})\n\n{text}"
     api("PATCH", f"/repos/{repo}/issues/comments/{comment['id']}", {"body": body})
 
