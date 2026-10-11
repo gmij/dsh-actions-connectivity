@@ -48,6 +48,17 @@ class DesignTests(unittest.TestCase):
             self.assertIn('SyncApiContract', invoke.call_args.args[1])
             self.assertTrue((Path(folder) / 'contract-error.txt').is_file())
 
+    def test_composite_input_repair_gets_exact_producer_input_objects(self):
+        from test_mvp_design import example2
+        data=example2();data['modules'][1]['tasks'][0]['inputs'][0]['source']='TASK-01/TASK-99 输出'
+        with tempfile.TemporaryDirectory() as folder, patch.object(issue_agent,'OUT',Path(folder)), patch.object(issue_agent,'invoke_dsh',return_value=json.dumps(example2())) as invoke:
+            issue_agent.design_with_repair(json.dumps(data),['dsh'],'requirements','detailed')
+            prompt=invoke.call_args.args[1]
+            self.assertIn('task01_api',prompt)
+            self.assertIn('TASK-01.api',prompt)
+            self.assertIn('不要把斜杠改为',prompt)
+            invoke.assert_called_once()
+
     def test_json_syntax_repair_receives_position_and_complete_schema(self):
         from test_mvp_design import example2
         with tempfile.TemporaryDirectory() as folder, patch.object(issue_agent, 'OUT', Path(folder)), patch.object(issue_agent, 'invoke_dsh', return_value=json.dumps(example2())) as invoke:
