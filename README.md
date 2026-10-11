@@ -7,6 +7,9 @@
 Issue 右侧 Assign to Agent → Custom agent：
 - DSH Reviewer
 - DSH Connectivity
+- DSH Prototype
+- DSH Overview Design（概要设计）
+- DSH Detailed Design（详细设计）
 
 配置位于 .github/agents/*.agent.md，无需标签。原生 Copilot 只负责调用 MCP 调度工具，实际任务交给 DSH Actions 执行。
 原生指派端到端已验收通过：Reviewer（Issue #6 / run 38108796906）和 Connectivity（Issue #8 / run 38108953535）。
@@ -82,3 +85,21 @@ GitHub Pages 已启用，并兼容仓库所有者的自定义域名。23 项单�
 修复发布运行 `38112794384` 的 test、build、deploy 均成功，25 项单元测试通过。已重新打开实际在线页面并截图核对，居中布局、字体、按钮、三本示例书及进度条恢复正常。此次完成首屏视觉检查；未声称完成全部在线交互或各移动尺寸验收。
 
 原型智能体规范补充：首屏关键内容直接写入 HTML、正常产品文案、低干扰演示说明、优先页面内编辑、安全策略统一由可信交付脚本负责。
+
+
+## 概要设计与详细设计智能体
+
+仓库新增两个可选原生 Agent，仍由 MCP 调度到真实 DSH，模型沿用 `gpt-5.4-mini`。当前共 5 个角色；无需新增调度凭据。
+
+| 下拉框名称 | DSH 角色 | 重心 |
+|---|---|---|
+| DSH Overview Design | overview | 架构、模块边界、领域模型、模块接口、关键流程、里程碑与概要级任务契约 |
+| DSH Detailed Design | detailed | 可独立开发的逐任务输入输出、接口示例、实现落点、事务、异常/重试/幂等、验收与测试 |
+
+在现有 Issue 右侧 Assign to Agent → Custom agent 选择相应角色。请把需求、概要设计及原型约束写入 Issue 或仓库设计文档；目前不会自动读取其他 Issue、附件或外部链接的内容，应粘贴相关正文或放入可读取的仓库文件。缺少概要时详细设计会标明最小概要与假设，不能假装已有确认。
+
+输入契约包括名称、准确类型/字段、来源、必填与校验；输出包括名称、准确类型/字段、消费者与成功保证。下游引用格式 `TASK-01.outputName`，必须存在并列出依赖，生产者输出与消费者输入类型必须一致；依赖禁止循环。
+
+每个实际模式/关键技术或模型选择写明：解决的具体问题、为什么采用、替代方案、取舍代价、适用边界、接口/类/模块落点，并与具体任务双向关联。简单任务允许直接实现；不强行加入模式。
+
+交付回写 Issue，并提供 `design-deliverable`：`design.md`、`task-contracts.md`、`decisions.md`、`design.json`、`README.md`，保留 30 天。JSON 契约由可信脚本校验，失败不会冒充设计成功；正文和任务表来自同一份数据。开发代码、创建子 Issue/PR、合并和部署均不属于这两个角色的执行范围。设计正文是提案，其业务正确性仍需结合实际需求评审。
