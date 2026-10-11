@@ -21,7 +21,7 @@ def write_bundle(raw, destination):
         raise ValueError('Decision and requirements are required')
     html = data['prototype_html']
     if data['needs_prototype']:
-        if len(html) < 500 or not re.search(r'<!doctype html', html, re.I) or '<html' not in html.lower() or not data['design_markdown'].strip():
+        if len(html) < 500 or not re.search(r'<!doctype html', html, re.I) or '<html' not in html.lower() or not re.search(r'<head\b[^>]*>', html, re.I) or not data['design_markdown'].strip():
             raise ValueError('Expected a complete HTML prototype and design notes')
         if not re.search(r'name=[\"\']viewport[\"\']', html, re.I):
             raise ValueError('Responsive viewport is required')
@@ -34,6 +34,9 @@ def write_bundle(raw, destination):
     (destination / 'requirements.md').write_text(data['requirements_markdown'])
     (destination / 'design.md').write_text(data['design_markdown'])
     if data['needs_prototype']:
+        # Interactions run only in the viewer's browser; block outbound requests.
+        csp = '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;unsafe-inline&#39;; style-src &#39;unsafe-inline&#39;; img-src data:; connect-src &#39;none&#39;; form-action &#39;none&#39;; frame-src &#39;none&#39;; base-uri &#39;none&#39;; object-src &#39;none&#39;">'
+        html = re.sub(r'(<head\b[^>]*>)', lambda match: match.group(1) + csp, html, count=1, flags=re.I)
         (destination / 'index.html').write_text(html)
     elif (destination / 'index.html').exists():
         (destination / 'index.html').unlink()
