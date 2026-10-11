@@ -10,17 +10,26 @@ def fail(message):
 
 def schema_check(schema, example, where='schema', depth=0):
     if depth > 12 or not isinstance(schema, dict): fail(where + ': invalid schema')
-    allowed={'type','properties','required','additionalProperties','items','enum','minimum','maximum','minLength','maxLength','format','description'}
+    allowed={'type','properties','required','additionalProperties','items','enum','minimum','maximum','minLength','maxLength','format','description','default','pattern','minItems','maxItems'}
     if set(schema)-allowed: fail(where + ': unsupported schema fields')
     types=schema.get('type'); types=[types] if isinstance(types,str) else types
     if not isinstance(types,list) or not types or set(types)-{'object','array','string','integer','number','boolean','null'}: fail(where+': explicit type required')
     matches={'null':example is None,'object':isinstance(example,dict),'array':isinstance(example,list),'string':isinstance(example,str),'integer':type(example) is int,'number':type(example) in {int,float},'boolean':type(example) is bool}
     if not any(matches[t] for t in types): fail(where+': example type mismatch')
+    for key in ['minimum','maximum']:
+        if key in schema and type(schema[key]) not in {int,float}: fail(where+': invalid numeric bound')
+    for key in ['minLength','maxLength','minItems','maxItems']:
+        if key in schema and (type(schema[key]) is not int or schema[key]<0): fail(where+': invalid nonnegative bound')
+    if 'enum' in schema and (not isinstance(schema['enum'],list) or not schema['enum']): fail(where+': enum must be nonempty')
     if 'enum' in schema and example not in schema['enum']: fail(where+': example outside enum')
     if type(example) in {int,float}:
         if 'minimum' in schema and example < schema['minimum']: fail(where+': below minimum')
         if 'maximum' in schema and example > schema['maximum']: fail(where+': above maximum')
     if isinstance(example,str):
+        if 'pattern' in schema:
+            try: matched=re.search(schema['pattern'],example)
+            except (re.error,TypeError): fail(where+': invalid pattern')
+            if not matched: fail(where+': example mismatches pattern')
         if len(example)<schema.get('minLength',0) or len(example)>schema.get('maxLength',100000): fail(where+': invalid length')
         if schema.get('format')=='uuid' and not re.fullmatch(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}',example): fail(where+': invalid UUID example')
     if 'object' in types:
@@ -35,6 +44,7 @@ def schema_check(schema, example, where='schema', depth=0):
     if 'array' in types:
         if 'items' not in schema: fail(where+': array items type required')
         if isinstance(example,list):
+            if len(example)<schema.get('minItems',0) or len(example)>schema.get('maxItems',100000): fail(where+': invalid array length')
             if not example: fail(where+': array example must show an item')
             for v in example: schema_check(schema['items'],v,where+'[]',depth+1)
 
