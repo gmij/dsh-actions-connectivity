@@ -6,6 +6,13 @@ import dsh_dispatch_mcp as bridge
 
 
 class BridgeTests(unittest.TestCase):
+    def test_design_roles_dispatch_to_real_dsh_with_fixed_role(self):
+        for role in ['overview', 'detailed']:
+            with patch.dict(os.environ, {'DSH_AGENT_ID': role}), patch.object(bridge, 'api', side_effect=[{'state': 'open'}, {'default_branch': 'main'}, None]) as api:
+                bridge.dispatch({'issue_number': 17})
+                self.assertEqual(api.call_args.args[2]['inputs']['agent'], role)
+                self.assertEqual(api.call_args.args[2]['inputs']['force'], 'false')
+
     def test_dispatch_is_fixed_repo_workflow_role_and_no_force(self):
         with patch.dict(os.environ, {'DSH_AGENT_ID': 'reviewer'}), patch.object(bridge, 'api', side_effect=[{'state': 'open'}, {'default_branch': 'main'}, None]) as api:
             result = bridge.dispatch({'issue_number': 2})
