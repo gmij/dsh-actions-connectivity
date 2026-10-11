@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 
-from issue_agent import api, comments
+from issue_agent import api, comments as issue_comments
 from prototype_pages import artifact, positive, validate_run, output, member
 from design_output import write_bundle
 
@@ -191,7 +191,7 @@ def publish():
     for issue,run_id,role,raw in sources:
         rich=json.loads(raw).get('delivery')
         if rich:
-            found=next((c for c in comments(repo,issue) if c['user']['login']=='github-actions[bot]' and f'<!-- dsh-pages:{run_id} -->' in (c.get('body') or '')),None)
+            found=next((c for c in issue_comments(repo,issue) if c['user']['login']=='github-actions[bot]' and f'<!-- dsh-pages:{run_id} -->' in (c.get('body') or '')),None)
             match=re.search(r'\[打开本次交互原型\]\((https?://[^\s()]+/)\)',found['body']) if found else None
             if not match or not match[1].endswith(f'/previews/issue-{issue}/runs/{run_id}/'): raise ValueError('Wiki requires verified Pages deployment and screenshots first')
             previews[run_id]=match[1]
