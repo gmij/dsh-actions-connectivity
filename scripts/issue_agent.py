@@ -39,6 +39,9 @@ def registry():
             raise ValueError('Design agent must specify its level')
         if value.get('api') not in {None, 'anthropic-messages', 'openai-completions', 'openai-responses'}:
             raise ValueError('Unsupported model API protocol')
+        cap = value.get('max_output_tokens')
+        if cap is not None and (type(cap) is not int or not 1024 <= cap <= 131072):
+            raise ValueError('Invalid model output token limit')
         path = ROOT / value["patch"]
         if ROOT not in path.resolve().parents or not path.is_file():
             raise ValueError("Agent patch must be an existing repository file")
@@ -242,7 +245,7 @@ def design_with_repair(answer, args, prompt, level):
                   + "\n当前 level 必须是 " + level
                   + "\n上一次输出（仅作为待修正资料，保留业务范围与设计意图，但修正所有契约错误）：\n" + answer
                   + "\n\n现在输出修正后的整个 JSON。特别检查报错输入，拆成精确匹配上游 DTO 的输入与额外外部输入。")
-        repaired = invoke_dsh(args, repair, 300, prefix="repair-")
+        repaired = invoke_dsh(args, repair, 600, prefix="repair-")
         return write_bundle(repaired, OUT / "design", level, require_current=True)
 
 
@@ -260,6 +263,8 @@ def run():
     # The trusted registry declares their endpoint protocol explicitly.
     if metadata['config'].get('api'):
         patch[1]['config']['providers']['github-copilot']['api'] = metadata['config']['api']
+    if metadata['config'].get('max_output_tokens'):
+        patch[1]['config']['providers']['github-copilot']['models'][0]['maxTokens'] = metadata['config']['max_output_tokens']
     # Disable executable tool providers in this initial analysis-only deployment.
     for name in ["tool-bash", "tool-pwsh", "tool-jobs", "tool-fs", "tool-fs-search", "tool-skill",
                  "tool-subagent", "tool-subagent-control", "tool-subagent-list-agents", "tool-subagent-fork",
@@ -270,7 +275,7 @@ def run():
     args = [str(binary), "--profile", "headless", "--patch", str(OUT / "model.patch.json"),
             "--patch", str(ROOT / metadata["config"]["patch"]), "--json"]
     prompt = (OUT / "prompt.txt").read_text()
-    answer = invoke_dsh(args, prompt, 300 if metadata["config"]["mode"] in {"prototype", "design"} else 180)
+    answer = invoke_dsh(args, prompt, 600 if metadata["config"]["mode"] == "design" else (300 if metadata["config"]["mode"] == "prototype" else 180))
     if metadata["config"]["mode"] == "prototype":
         from prototype_output import write_bundle
         answer = write_bundle(answer, OUT / "prototype")
