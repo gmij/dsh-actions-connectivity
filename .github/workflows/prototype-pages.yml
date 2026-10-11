@@ -1,5 +1,5 @@
 name: Prototype Pages
-run-name: Prototype Pages · DSH run ${{ inputs.source_run_id || github.event.workflow_run.id || github.run_id }}
+run-name: Prototype Pages · DSH run ${{ inputs.source_run_id || github.event.workflow_run.id || '38128528526' }}
 
 on:
   workflow_run:
@@ -43,7 +43,7 @@ jobs:
 
   build:
     needs: test
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'issues' || github.event.workflow_run.event == 'workflow_dispatch'))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'issues' || github.event.workflow_run.event == 'workflow_dispatch')) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[pages-backfill]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     permissions:
@@ -53,7 +53,7 @@ jobs:
     outputs:
       publish: ${{ steps.prepare.outputs.publish }}
       issue_number: ${{ steps.prepare.outputs.issue_number }}
-      source_run_id: ${{ inputs.source_run_id || github.event.workflow_run.id }}
+      source_run_id: ${{ inputs.source_run_id || github.event.workflow_run.id || '38128528526' }}
     steps:
       - uses: actions/checkout@v4
         with:
