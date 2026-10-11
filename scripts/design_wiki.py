@@ -161,6 +161,7 @@ def publish():
             match=re.fullmatch(r'Prototype Pages · DSH run ([1-9]\d*)',run.get('display_title',''))
             if not match: raise ValueError('Pages source run missing')
             run_id=int(match[1]);run=api('GET',f'/repos/{repo}/actions/runs/{run_id}')
+        if run.get('path')=='.github/workflows/issue-agent.yml' and run.get('event')=='push': continue
         validate_run(run, repo, repository['default_branch'])
         archive = artifact(repo, run_id, 'issue-agent-input', required=False)
         if archive is None: continue
