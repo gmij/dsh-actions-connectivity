@@ -73,7 +73,7 @@ def assemble(existing, state, repo, issue, run_id, role, raw, preview=None):
         docs = {str(p.relative_to(bundle)): p.read_text() for p in bundle.rglob('*.md') if p.name != 'README.md'}
     prefix = base(issue, role)
     names = {'design.md': '', 'task-contracts.md': '-Tasks', 'decisions.md': '-Decisions', 'overview-update.md': '-Overview-Update'}
-    names.update({'milestones.md': '-Milestones', 'ui.md': '-UI', 'documentation.md': '-Documentation', 'api-contracts.md':'-APIs','frontend-bindings.md':'-Bindings'})
+    names.update({'milestones.md': '-Milestones', 'ui.md': '-UI', 'documentation.md': '-Documentation', 'api-contracts.md':'-APIs','frontend-bindings.md':'-Bindings','ipc-contracts.md':'-IPC'})
     names.update({name: '-' + Path(name).stem for name in docs if name.startswith('apis/')})
     names.update({name: '-' + Path(name).stem for name in docs if name.startswith('modules/')})
     result = dict(existing)
