@@ -91,7 +91,7 @@ GitHub Pages 已启用，并兼容仓库所有者的自定义域名。23 项单�
 
 通过原生 Assign to Agent 选择 **DSH Overview Design** 或 **DSH Detailed Design**，仍由 MCP 调度到真实 DSH。实际模型由 `agents/registry.json` 的角色配置控制，调度层 Model 下拉框不会覆盖它。
 
-模型选择：概要与详细设计现使用 `claude-haiku-5.5`，已通过真实 DSH、V2 契约校验与 Wiki 发布。采用显式 `anthropic-messages` 协议，输出预算 65,536 token；每次设计推理最多 10 分钟，最多一次修复，Actions 作业上限 25 分钟。正式 `gpt-5.4` 的成功 Actions 记录保留为对照；无效输出不会替换 Wiki 成功版本。简单连通性与其他角色的模型配置独立；DSH 名称不代表调用 DeepSeek 推理模型。
+模型选择：概要与详细设计现使用 `claude-haiku-5.5`，已通过真实 DSH、V2 契约校验与 Wiki 发布。采用显式 `anthropic-messages` 协议，概要输出预算 65,536 token，详细设计 128,000 token；每次设计推理最多 15 分钟，最多一次修复，Actions 作业上限 35 分钟。正式 `gpt-5.4` 的成功 Actions 记录保留为对照；无效输出不会替换 Wiki 成功版本。简单连通性与其他角色的模型配置独立；DSH 名称不代表调用 DeepSeek 推理模型。
 
 ### 设计顺序：MVP 里程碑 → 模块 → 模块内任务
 
@@ -112,10 +112,14 @@ V2 JSON 的任务嵌套在 `modules[].tasks`；顶层不再有全局 tasks。产
 - `design.md`：完整设计入口、MVP 路径、模块导航与跨模块架构。
 - `milestones.md`：用户闭环、跨模块任务、集成验收、发布及回滚。
 - `modules/MOD-xx.md`：模块整体设计、前端/后端/接口/文档，随后是所属任务完整契约。
-- `ui.md`：页面布局、交互、状态和 API 映射；设计提案，不冒充已实现页面。
+- `ui.md`：页面布局、交互、状态、实际桌面截图、手机截图与本轮 Pages 入口。
+- `api-contracts.md` 和 `apis/API-xx.md`：逐接口独立文档，路径/查询/请求体字段类型、必填、可空、边界与示例，各成功/错误状态的响应契约、所属后端模块和任务。
+- `frontend-bindings.md`：逐页面动作到 API、请求字段来源、响应字段去向，以及加载/成功/失败处理。
 - `documentation.md`：使用/接口/运行/部署文档交付与验收清单。
 - `task-contracts.md`：按模块组织的任务索引；完整任务契约位于模块内。
 - `decisions.md`、`design.json`，详细设计另有 `overview-update.md`。
+
+Web 设计必须同轮交付结构化 HTTP 契约、页面字段映射及可运行 HTML。可信脚本校验后，隔离浏览器生成桌面与手机 PNG；Pages 实际部署成功后才发布 Wiki、回填真实链接和截图。契约或截图失败不会发布缺项文档。
 
 设计成功后自动发布 Wiki，原 Issue 回填目录、最新设计和固定版本链接。阅读顺序为设计入口 → MVP 里程碑 → 模块 → 模块内任务；界面与文档可从侧栏进入。不要求下载 Markdown。
 
@@ -135,7 +139,7 @@ V2 JSON 的任务嵌套在 `modules[].tasks`；顶层不再有全局 tasks。产
 
 ## GitHub Wiki 设计文档同步
 
-`Design Wiki` 在 Issue DSH agent 成功结束后校验本仓库默认分支上的来源，跳过非设计角色，再把设计交付同步为可直接阅读的 Wiki 页面：文档目录、侧栏、概要/详细设计、逐任务契约、设计决策、独立模块、概要同步修订与历史版本。保留人工页面及 Home/侧栏中的人工内容；不执行模型输出。最新页面与按 DSH run 固定的版本同时保存，补发旧运行不会倒退最新版本。Wiki 的设计完成不代表业务验收通过。
+`Design Wiki` 在 `Prototype Pages` 部署成功后校验本仓库默认分支上的来源，跳过非设计角色，再把设计交付同步为可直接阅读的 Wiki 页面：文档目录、侧栏、概要/详细设计、逐任务契约、设计决策、独立模块、概要同步修订与历史版本。保留人工页面及 Home/侧栏中的人工内容；不执行模型输出。最新页面与按 DSH run 固定的版本同时保存，补发旧运行不会倒退最新版本。Wiki 的设计完成不代表业务验收通过。
 
 发布成功后才在原 Issue 写入真实 Wiki 链接。同步失败时仍保留可检查的 `design-wiki-preview`，修复后重跑发布工作流即可，无需重新调用模型。Actions → Design Wiki → Run workflow 可输入逗号分隔的成功运行 ID；dry_run 只生成预览。首次启用 Wiki 后，需要在 Wiki 中创建首个 Home 页面以初始化 Wiki Git 后端。默认使用本仓库 GITHUB_TOKEN；若 Wiki 写权限不支持该身份，可配置仅覆盖本仓库的 `WIKI_PUBLISH_TOKEN`。发布器正常推送，不强制覆盖历史。
 
@@ -146,17 +150,14 @@ V2 JSON 的任务嵌套在 `modules[].tasks`；顶层不再有全局 tasks。产
 阅读入口：[Wiki 文档目录](https://github.com/gmij/dsh-actions-connectivity/wiki/DSH-Documents)。从这里进入 [概要设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-16-Overview) 或 [模块详细设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed)。以后成功的设计交付会自动发布并在原 Issue 引导到 Wiki；无需下载 Markdown。此次复用了已有成功 DSH 设计，不是重新调用模型，未声称完成浏览器视觉检查。
 
 
-### 清空 Wiki 后的全流程验收（2026-10-11）
+### 本轮可视原型与接口契约验收（2026-10-11）
 
-按用户要求，在重新生成前删除 Wiki 的 74 个文件，只保留原 Home.md 并验证内容逐字节不变；清理运行 [38127247605](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38127247605) 成功，清理提交为 2ed0da98e4aec08d32d3ba8c6a733d805e763528。一次性清理工作流完成后已移除。
+重新生成前，清理运行 [38128465180](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38128465180) 删除 41 个 Wiki 文件，只保留原 Home 并验证逐字节不变；一次性清理工作流已移除。随后真实 DSH 使用 Claude Haiku 5.5 重新生成概要与详细设计：
 
-使用当前 Claude Haiku 5.5 与真实 DSH 从同一完整需求重新推理：
-- [概要运行 38127287001](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38127287001)：route/agent/publish 成功。
-- [详细运行 38127289558](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38127289558)：route/agent/publish 成功。
-- Wiki 发布运行 38127478918 与 38127557436 的 test/publish 均成功，51 项单元测试通过，原 Issues 已回填新链接。
+- 概要源运行 [38128528526](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38128528526) 的 route/agent/capture/publish 全部成功；Pages [38129381834](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38129381834) 与 Wiki [38129427814（attempt 2）](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38129427814/attempts/2) 成功。源运行的汇总状态曾延迟，发布器仅在全部必需作业已完成并成功时允许人工补发。
+- 详细源运行 [38129771299](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38129771299) 成功，交付 1 个 MVP、4 个模块、6 个模块内任务、5 个独立 HTTP 接口与 5 组页面动作映射。Pages [38130255180](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38130255180) 和 Wiki [38130298379](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38130298379) 均成功，Issue #17 已回填真实链接。
+- 58 项单元测试通过；隔离 Chromium 实际生成 1100×900 桌面与 390×844 手机全页 PNG，检查脚本错误、关键控件与横向溢出；两种截图已人工查看。未声称完成在线浏览器全流程交互测试。
 
-本轮详细设计包含 1 个可交互 MVP、3 个模块、7 个模块内任务，覆盖 backend/frontend/integration/documentation；包含 /sync 页面、前后端契约、5 个集成验收场景、输入输出与模式依据、发布回滚说明。独立概要同步修订与本轮详细模块一致。业务代码及业务集成测试仍待执行。
+阅读入口：[Wiki 目录](https://github.com/gmij/dsh-actions-connectivity/wiki/DSH-Documents) · [详细界面设计及截图](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-UI) · [逐接口契约](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-APIs) · [页面到接口字段映射](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-Bindings) · [本轮交互原型](http://gmij.win/dsh-actions-connectivity/previews/issue-17/runs/38129771299/)。
 
-发布预览包含 42 个文件；目录索引和固定版本仅包含本轮两个新 run，没有重用旧交付包。旧 Wiki 版本页已清除，历史 Actions 记录仍保留。阅读顺序为 MVP → 模块完整设计 → 模块内任务。
-
-[Wiki 目录](https://github.com/gmij/dsh-actions-connectivity/wiki/DSH-Documents) · [详细设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed) · [同步后的概要模块说明](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-Overview-Update)
+原型使用本地演示数据；业务后端、数据库迁移与里程碑集成验收仍待实际开发和执行。模型输出的设计提案不会自动发布业务产品。
