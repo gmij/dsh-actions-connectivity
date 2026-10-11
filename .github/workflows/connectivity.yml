@@ -1,0 +1,50 @@
+name: Connectivity smoke
+on:
+  push:
+    paths: ['.github/workflows/connectivity.yml']
+  workflow_dispatch:
+    inputs:
+      copilot_model:
+        description: Optional exact Copilot model ID; blank uses account default
+        required: false
+        type: string
+permissions:
+  contents: read
+  copilot-requests: write
+jobs:
+  dsh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix "$RUNNER_TEMP/dsh" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-alpha.2
+      - name: DSH launcher connectivity
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+        run: |
+          "$RUNNER_TEMP/dsh/node_modules/.bin/dsh" --version
+          "$RUNNER_TEMP/dsh/node_modules/.bin/dsh" --profile headless --help
+  copilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Copilot CLI
+        run: npm install --prefix "$RUNNER_TEMP/copilot" --no-audit --no-fund @github/copilot
+      - name: Copilot account connectivity
+        timeout-minutes: 2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          COPILOT_MODEL: ${{ inputs.copilot_model }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(-p "Reply with exactly CONNECTIVITY_OK. Do not use tools or inspect any files." -s --no-ask-user)
+          if [ -n "$COPILOT_MODEL" ]; then args+=(--model "$COPILOT_MODEL"); fi
+          "$RUNNER_TEMP/copilot/node_modules/.bin/copilot" "${args[@]}" > "$RUNNER_TEMP/copilot-result.txt"
+          cat "$RUNNER_TEMP/copilot-result.txt"
+          grep -q 'CONNECTIVITY_OK' "$RUNNER_TEMP/copilot-result.txt"
