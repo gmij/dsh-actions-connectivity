@@ -69,7 +69,7 @@ def stage_prompt(original, name, keys, completed, level):
 def parse_stage_json(response):
     """Accept one complete JSON code fence, never arbitrary prose or partial fences."""
     value = response.strip()
-    match = re.fullmatch(r"```(?:json)?[ \\t]*\\r?\\n([\\s\\S]*?)\\r?\\n```", value, flags=re.IGNORECASE)
+    match = re.fullmatch(r"```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```", value, flags=re.IGNORECASE)
     if match:
         value = match.group(1).strip()
     return json.loads(value)
