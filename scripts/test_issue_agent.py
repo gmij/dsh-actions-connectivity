@@ -30,8 +30,36 @@ class RoutingTests(unittest.TestCase):
         self.assertNotEqual(key, fingerprint({**issue, "body": "new code"}, "reviewer", {}, "persona"))
         self.assertNotEqual(key, fingerprint(issue, "connectivity", {}, "persona"))
 
+
+if __name__ == "__main__":
+    unittest.main()
+
 # Regression: native dispatcher instructions must not contaminate DSH context.
 class NativeWorkerSeparationTests(unittest.TestCase):
+    def test_design_prompt_uses_business_sources_and_tracks_instruction_changes(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        import issue_agent
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'agents').mkdir()
+            guide = root / 'agents/design-instructions.md'
+            guide.write_text('DESIGN_CONTRACT_RULES')
+            (root / 'Book.cs').write_text('BUSINESS_CSHARP_DOMAIN')
+            (root / 'scripts').mkdir()
+            (root / 'scripts/dispatch.py').write_text('DISPATCHER_ONLY_INSTRUCTION')
+            issue = {'number': 17, 'title': 'design', 'body': 'business scope'}
+            with patch.object(issue_agent, 'ROOT', root):
+                prompt = issue_agent.build_prompt(issue, 'detailed')
+                before = issue_agent.fingerprint(issue, 'detailed', {'mode': 'design'}, 'patch')
+                guide.write_text('NEW_DESIGN_CONTRACT_RULES')
+                after = issue_agent.fingerprint(issue, 'detailed', {'mode': 'design'}, 'patch')
+            self.assertIn('BUSINESS_CSHARP_DOMAIN', prompt)
+            self.assertIn('DESIGN_CONTRACT_RULES', prompt)
+            self.assertNotIn('DISPATCHER_ONLY_INSTRUCTION', prompt)
+            self.assertNotEqual(before, after)
+
     def test_dispatch_profiles_are_excluded_and_connectivity_gets_no_snapshot(self):
         import tempfile
         from pathlib import Path
@@ -52,7 +80,3 @@ class NativeWorkerSeparationTests(unittest.TestCase):
             self.assertNotIn('BUSINESS_REVIEW_SOURCE', connectivity)
             self.assertIn('dispatch is complete', connectivity)
             self.assertIn('Please return WORKER_OK', connectivity)
-
-
-if __name__ == "__main__":
-    unittest.main()
