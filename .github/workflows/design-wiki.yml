@@ -1,0 +1,70 @@
+name: Design Wiki
+on:
+  workflow_run:
+    workflows: ['Issue DSH agent']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_run_ids:
+        description: Successful DSH design run IDs, comma-separated
+        required: true
+        default: '38114770873,38115050536'
+        type: string
+      dry_run:
+        description: Generate preview without changing Wiki
+        default: false
+        type: boolean
+  push:
+    branches: [main]
+    paths: ['scripts/design_wiki.py', 'scripts/test_design_wiki.py', '.github/workflows/design-wiki.yml']
+permissions:
+  contents: read
+concurrency:
+  group: dsh-design-wiki
+  cancel-in-progress: false
+  queue: max
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - run: python -m unittest discover -s scripts -p 'test_*.py'
+  publish:
+    needs: test
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+       (github.event.workflow_run.event == 'issues' || github.event.workflow_run.event == 'workflow_dispatch')) ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[wiki-backfill]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - id: wiki
+        name: Validate delivery and synchronize Wiki
+        run: python scripts/design_wiki.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WIKI_TOKEN: ${{ secrets.WIKI_PUBLISH_TOKEN || github.token }}
+          SOURCE_RUN_IDS: ${{ inputs.source_run_ids || github.event.workflow_run.id || '38114770873,38115050536' }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+      - name: Retain readable Wiki preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-wiki-preview
+          path: ${{ runner.temp }}/design-wiki-preview/
+          if-no-files-found: ignore
+          retention-days: 30
