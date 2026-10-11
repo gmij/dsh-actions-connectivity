@@ -65,6 +65,8 @@ def select_agent(issue, agents, override=""):
 
 def fingerprint(issue, agent, config, patch):
     payload = [issue["number"], issue["title"], issue.get("body") or "", agent, config, patch]
+    if agent != 'connectivity':
+        payload.append(collaboration_guide())
     if config.get("mode") == "prototype":
         payload.append((ROOT / "agents/prototype-instructions.md").read_text())
     if config.get('mode') == 'design':
@@ -99,6 +101,11 @@ def output(**values):
             file.write(f"{key}={value}\n")
 
 
+def collaboration_guide():
+    path = ROOT / 'agents/collaboration-instructions.md'
+    return path.read_text() if path.is_file() else ''
+
+
 def build_prompt(issue, chosen):
     number = issue["number"]
     context = []
@@ -127,6 +134,8 @@ def build_prompt(issue, chosen):
     if chosen in {'overview', 'detailed'}:
         prompt = (ROOT / 'agents/design-instructions.md').read_text() + '\n\n' + prompt
         prompt += '\n\n当前 level 必须是 ' + chosen + '。'
+    if chosen != 'connectivity':
+        prompt = collaboration_guide() + '\n\n' + prompt
     return prompt
 
 
