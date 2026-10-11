@@ -1,31 +1,48 @@
-# GitHub 原生 agent 下拉框
+# 原生下拉框 → DSH 引擎
 
-2026-10-11 已在 Issue 的 Assign to Agent → Custom agent 下拉框实际验证：
+## 当前状态（2026-10-11）
 
-- Connectivity (Copilot)
-- Reviewer (Copilot)
+桥接代码与两个 Agent 配置已实现；本地 12 项测试通过（6 项桥接与 6 项原 Issue 路由）。
+尚未完成端到端验收：缺少 Agents 调度凭据，没有以原生指派运行新的 DSH 任务。
+不能把本地 API mock 或菜单显示当作端到端完成。
 
-配置文件：
-- .github/agents/connectivity.agent.md
-- .github/agents/reviewer.agent.md
+## 运行链路
 
-打开 Issue 右侧 Assign to Agent，展开 Custom agent，选择角色和模型后点击 Assign。
-无需添加标签。当前仅验证配置被识别、选项可见；本轮没有提交原生任务进行执行测试。
+Issue → Assign to Agent → Custom agent → DSH Reviewer / DSH Connectivity。
+GitHub 原生入口仍先启动 Copilot Cloud Agent，但它仅调用受限 MCP dispatch_issue 工具。
+工具角色固定在 profile 环境配置，只接受当前 issue_number。
+它调度 issue-agent.yml，DSH headless 加载 agents/registry.json 的角色和 patch 完成任务。
+DSH Actions 自己读取 Issue 正文、验证调度者写权限、执行并将状态/结果/运行链接写回 Issue。
+不需要标签。Copilot 的回复只表示调度状态，不替代 DSH 结果。
+原生 bot assigned 路由的跳过规则保留；MCP 使用 workflow_dispatch 明确选定角色。
+相同内容由现有 DSH fingerprint 去重；MCP 不允许 force=true。
 
-## 执行引擎
+## 一次性认证配置
 
-这两个原生配置由 Copilot Cloud Agent 执行，并非此前的 DSH Actions 工作流。
-Reviewer 仅开放 read/search；Connectivity 不开放工具。
-GitHub 原生 Issue 指派会启动 Copilot 的云端任务，可能采用其 PR 交付流程。
-不要将此入口运行的结果称为 DSH 结果。
+创建仅覆盖 gmij/dsh-actions-connectivity 的 fine-grained PAT：
+- Actions: Read and write（用于 workflow_dispatch）
+- Issues: Read-only（验证目标是开放 Issue）
+- Metadata: Read-only（默认）
+- 建议测试凭据有效期 7 天，验收后撤销或替换为仓库专用 GitHub App installation token。
 
-此前 agents/registry.json 是 DSH 工作流清单；.github/agents 是 GitHub 原生自定义 agent 清单。
-二者独立。仅把 DSH 角色放进 .github/agents 不能切换 GitHub 的执行引擎。
+在 Repository Settings → Agents → Secrets 创建：
+COPILOT_MCP_DSH_DISPATCH_TOKEN。
+旧版 UI 可能将此显示为 copilot environment secret；必须是原生 Agent 可读取的秘密，普通 Actions repository secret 不会自动传入 Agent MCP。
+不要把 token 发到聊天、Issue、PR、配置文件或日志中。
+这是调度凭据，不是模型 API key。DSH 模型推理继续使用 Actions 临时 github.token 与 copilot-requests:write。
+内置 GitHub MCP 默认只读；当前 GitHub 连接器身份也不会自动变成原生 Agent 的调度凭据。
 
-若要保留“原生下拉框 → DSH Actions”的完整链路，需要实现受控的调度桥接（例如自定义 agent 的 MCP dispatch 工具），
-并验证认证权限、Issue 与角色传递、工作流触发以及结果关联。
-该桥接尚未实现。不能把普通 GitHub App 直接等同于已启用 agent 功能的 GitHub agent app。
+## 验收步骤（凭据配置后）
+
+1. 创建全新 Issue，正文要求只输出 DSH_NATIVE_BRIDGE_OK；不加标签、不使用旧 Agent 表单。
+2. 从 Assign to Agent 的 Custom agent 选择 DSH Connectivity 并提交。
+3. 检查原生 session 确实调用 dispatch_issue 并成功返回，而不是自行输出标记。
+4. 检查新的 Issue DSH agent run 的 route/agent/publish 全部成功，DSH JSONL 中有 final 与 completed turn_end。
+5. 原 Issue 必须出现 github-actions[bot] 的 DSH 完成结果及该 run 链接，输出指定标记。
+6. 新建代码审查 Issue，以同一路径选择 DSH Reviewer，验证运行 metadata 中角色 reviewer 与注册 patch 一致。
+
+GitHub 原生会话仍可能建立自身 PR 容器；不要将该 PR 当作 DSH 的交付。
+本仓库当前 DSH 角色为禁工具 analysis 模式，可执行连通性测试和审查建议，不修改仓库代码。
 
 参考：
-https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/create-custom-agents
 https://docs.github.com/en/copilot/reference/custom-agents-configuration
