@@ -66,16 +66,16 @@ def validate(data, level):
                 text(value)
     for task in tasks:
         if len(set(task['depends_on'])) != len(task['depends_on']) or any(dep not in indexed or dep == task['id'] for dep in task['depends_on']):
-            raise ValueError('Invalid task dependency')
+            raise ValueError(f"{task['id']}: depends_on must contain existing task IDs only, not output references; got {task['depends_on']}")
         for value in task['inputs']:
             source = value['source']
             if source.startswith('TASK-'):
                 match = re.fullmatch(r'(TASK-\d{2,3})\.([A-Za-z][A-Za-z0-9_]*)', source)
                 if not match or match[1] not in task['depends_on']:
-                    raise ValueError('Producer input must reference an explicit dependency and output')
+                    raise ValueError(f"{task['id']}.{value['name']}: source {source} must reference an output of a task ID listed in depends_on")
                 producer = next((o for o in indexed[match[1]]['outputs'] if o['name'] == match[2]), None)
                 if producer is None or producer['type'] != value['type']:
-                    raise ValueError('Producer/consumer output name or type mismatch')
+                    raise ValueError(f"{task['id']}.{value['name']}: source {source} has type {producer['type'] if producer else 'MISSING OUTPUT'} but consumer declares {value['type']}; consume the exact producer DTO as a separate input, not a wrapper/request/interface derived from it")
     visited, active = set(), set()
     def visit(identifier):
         if identifier in active:
