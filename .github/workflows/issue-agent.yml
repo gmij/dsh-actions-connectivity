@@ -68,7 +68,7 @@ jobs:
     needs: route
     if: needs.route.outputs.run == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 12
     permissions:
       contents: read
       copilot-requests: write
@@ -103,6 +103,13 @@ jobs:
             ${{ runner.temp }}/issue-agent/errors.log
           if-no-files-found: ignore
           retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: success() && needs.route.outputs.agent == 'prototype'
+        with:
+          name: prototype-deliverable
+          path: ${{ runner.temp }}/issue-agent/prototype/
+          if-no-files-found: error
+          retention-days: 30
   publish:
     needs: [route, agent]
     if: always() && needs.route.result == 'success' && needs.route.outputs.run == 'true'
@@ -111,6 +118,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
