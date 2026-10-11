@@ -58,6 +58,40 @@ class StagedDesignTests(unittest.TestCase):
             self.assertEqual(data['task_records'], [])
             self.assertEqual(json.loads(Path(directory, 'stage-tasks.json').read_text()), {'task_records': []})
 
+    def test_missing_core_experience_is_retried_once(self):
+        core = {'schema_version': 2, 'level': 'overview', 'summary_markdown': 'S',
+                'design_markdown': 'D', 'milestones': [], 'modules': [], 'decisions': [],
+                'overview_update_markdown_placeholder': ''}
+        fragments = {'tasks': {'task_records': []}, 'pages': {'page_records': []},
+                     'apis': {'apis': []}, 'bindings': {'bindings': []},
+                     'channels': {'channels': []}, 'prototype': {'prototype_html': ''}}
+        calls = []
+        def model(prompt, name):
+            calls.append(name)
+            if name == 'core':
+                return json.dumps(core)
+            if name == 'core-schema-retry':
+                self.assertIn('experience', prompt)
+                return json.dumps({**{k: v for k, v in core.items()
+                                       if k != 'overview_update_markdown_placeholder'},
+                                   'experience': {'interaction_mode': 'web', 'rationale': 'VS Code Webview'}})
+            return json.dumps(fragments[name])
+        with tempfile.TemporaryDirectory() as directory:
+            result = json.loads(generate_staged('brief', 'overview', directory, model))
+            self.assertEqual(result['experience']['interaction_mode'], 'web')
+            self.assertEqual(calls.count('core-schema-retry'), 1)
+            self.assertTrue(Path(directory, 'stage-core.json').exists())
+
+    def test_schema_retry_must_not_accept_still_missing_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            calls = []
+            def model(prompt, name):
+                calls.append(name)
+                return json.dumps({'schema_version': 2, 'level': 'overview'})
+            with self.assertRaisesRegex(ValueError, 'schema retry fields mismatch'):
+                generate_staged('brief', 'overview', directory, model)
+            self.assertEqual(calls, ['core', 'core-schema-retry'])
+
     def test_conflicting_envelope_is_rejected(self):
         fragments = {
             'core': {'schema_version': 2, 'level': 'overview',
