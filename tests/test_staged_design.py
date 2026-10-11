@@ -35,10 +35,10 @@ class StagedDesignTests(unittest.TestCase):
             self.assertTrue(Path(directory, 'stage-core.json').exists())
 
     def test_json_code_fence(self):
-        self.assertEqual(parse_stage_json('```json\\n{"core":true}\\n```'), {'core': True})
-        self.assertEqual(parse_stage_json('```JSON\\r\\n{"core":true}\\r\\n```'), {'core': True})
+        self.assertEqual(parse_stage_json('```json\n{"core":true}\n```'), {'core': True})
+        self.assertEqual(parse_stage_json('```JSON\r\n{"core":true}\r\n```'), {'core': True})
         self.assertEqual(parse_stage_json(' {"core":true} '), {'core': True})
-        for value in ('before\\n```json\\n{}\\n```', '```json\\n{}', '```json\\n{}\\n```\\nafter'):
+        for value in ('before\n```json\n{}\n```', '```json\n{}', '```json\n{}\n```\nafter'):
             with self.assertRaises(json.JSONDecodeError):
                 parse_stage_json(value)
 
