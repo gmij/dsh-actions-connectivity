@@ -16,6 +16,7 @@ class StagedDesignTests(unittest.TestCase):
             'pages': {'page_records': []},
             'apis': {'apis': []},
             'bindings': {'bindings': []},
+            'channels': {'channels': []},
             'prototype': {'prototype_html': ''},
         }
         calls = []
@@ -26,7 +27,7 @@ class StagedDesignTests(unittest.TestCase):
                 return json.dumps(fragments[name])
             merged = json.loads(generate_staged('Design brief', 'overview', directory, model))
             self.assertEqual(set(merged), set(fragments['core']) | {'task_records', 'page_records', 'delivery'})
-            self.assertEqual(calls, ['core', 'tasks', 'pages', 'apis', 'bindings', 'prototype'])
+            self.assertEqual(calls, ['core', 'tasks', 'pages', 'apis', 'bindings', 'channels', 'prototype'])
             # Checkpoints must not invoke the model twice for identical run directory.
             again = json.loads(generate_staged('Design brief', 'overview', directory,
                                                 lambda *_: self.fail('unnecessary model call')))

@@ -14,6 +14,7 @@ STAGES = (
     ("pages", ("page_records",)),
     ("apis", ("apis",)),
     ("bindings", ("bindings",)),
+    ("channels", ("channels",)),
     ("prototype", ("prototype_html",)),
 )
 
@@ -42,6 +43,13 @@ def stage_prompt(original, name, keys, completed, level):
                 "不适用 HTTP API 时输出空数组。单次最多 3 个 API，控制输出体积。",
         "bindings": "仅输出 bindings 数组，引用已生成 apis 和 page_records。"
                     "没有适用 HTTP API 时输出空数组，页面内部交互在模块接口契约描述。",
+        "channels": "仅输出 channels 数组，适用于 VS Code Webview、命令、ACP、stdio 和 IPC。"
+                    "每条通道严格定义 id(IPC-01)、module_id、task_id、transport、command、"
+                    "request/request_example、response/response_example、error/error_example、bindings。"
+                    "三个消息 Schema 使用与 HTTP 相同的内联 JSON Schema 子集；bindings 每项含"
+                    "page_id、action、request_mapping、response_mapping、loading_behavior、"
+                    "error_behavior、success_behavior。字段映射 source/target 明确到 schema。"
+                    "非 HTTP 交互必须在这里定义，不得用空 channels 掩盖缺失契约。",
         "prototype": "仅输出 prototype_html 字符串，必要时生成可本地运行的离线交互 HTML。"
                      "不要把 HTML 和 API Schema 放在一个 JSON 回复里。"
                      "使用 JSON 的正常转义；无需原型时返回空字符串。"
@@ -82,5 +90,5 @@ def generate_staged(original, level, out_dir, invoke):
         assembled.update(fragment)
         if not checkpoint.exists():
             checkpoint.write_text(json.dumps(fragment, ensure_ascii=False, indent=2))
-    assembled["delivery"] = {key: assembled.pop(key) for key in ("apis", "bindings", "prototype_html")}
+    assembled["delivery"] = {key: assembled.pop(key) for key in ("apis", "bindings", "channels", "prototype_html")}
     return json.dumps(assembled, ensure_ascii=False)

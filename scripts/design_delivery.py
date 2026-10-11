@@ -62,9 +62,13 @@ def validate_delivery(data, required=False):
     if delivery is None:
         if required and data['experience']['interaction_mode']=='web': fail('web designs require structured apis, bindings and prototype_html')
         return
-    if not isinstance(delivery,dict) or set(delivery)!={'apis','bindings','prototype_html'}: fail('exact delivery fields: apis/bindings/prototype_html')
+    if not isinstance(delivery,dict) or set(delivery) not in ({'apis','bindings','prototype_html'}, {'apis','bindings','channels','prototype_html'}): fail('delivery must contain apis/bindings/prototype_html and optionally typed channels')
     apis=delivery['apis']; bindings=delivery['bindings']
-    if not isinstance(apis,list) or not 1<=len(apis)<=30 or not isinstance(bindings,list) or not 1<=len(bindings)<=60: fail('bounded APIs and bindings required')
+    if not isinstance(apis,list) or len(apis)>30 or not isinstance(bindings,list) or len(bindings)>60: fail('bounded APIs and bindings required')
+    if bool(apis)!=bool(bindings): fail('HTTP APIs require HTTP bindings and vice versa')
+    channels=delivery.get('channels',[])
+    if not isinstance(channels,list) or len(channels)>30: fail('bounded typed channels required')
+    if not apis and not channels: fail('at least one HTTP API or typed IPC channel required')
     modules={m['id']:m for m in data['modules']}; tasks={t['id']:(m['id'],t) for m in data['modules'] for t in m['tasks']}; pages={p['id'] for m in data['modules'] for p in m['frontend']['pages']}; ids={}; routes=set()
     for a in apis:
         if set(a)!={'id','module_id','task_id','method','path','title','auth','request','request_example','responses'} or not re.fullmatch(r'API-\d{2,3}',a['id']) or a['id'] in ids: fail('API identity/fields invalid')
@@ -102,7 +106,32 @@ def validate_delivery(data, required=False):
         for k in ['action','loading_behavior','error_behavior','success_behavior']:
             if not isinstance(b[k],str) or not b[k].strip(): fail('binding behavior required')
         used.add(b['api_id']); bound_pages.add(b['page_id']); binding_ids.add(b['id'])
-    if used!=set(ids) or bound_pages!=pages: fail('every public API and page must have bindings')
+    if used!=set(ids): fail('every public HTTP API must have bindings')
+    channel_ids=set(); channel_pages=set()
+    for c in channels:
+        keys={'id','module_id','task_id','transport','command','request','request_example','response','response_example','error','error_example','bindings'}
+        if not isinstance(c,dict) or set(c)!=keys or not isinstance(c['id'],str) or not re.fullmatch(r'IPC-\d{2,3}',c['id']) or c['id'] in channel_ids: fail('typed IPC identity/fields invalid')
+        if c['transport'] not in {'vscode-webview','vscode-command','acp','process-stdio','ipc'}: fail(c['id']+': unsupported IPC transport')
+        if not isinstance(c['command'],str) or not c['command'].strip(): fail(c['id']+': command/event name required')
+        if c['module_id'] not in modules or c['task_id'] not in tasks or tasks[c['task_id']][0]!=c['module_id']: fail(c['id']+': channel owner task/module invalid')
+        for field in ('request','response','error'):
+            schema_check(c[field],c[field+'_example'],c['id']+'.'+field)
+        if not isinstance(c['bindings'],list) or not c['bindings']: fail(c['id']+': page/action bindings required')
+        for b in c['bindings']:
+            keys={'page_id','action','request_mapping','response_mapping','loading_behavior','error_behavior','success_behavior'}
+            if not isinstance(b,dict) or set(b)!=keys or b['page_id'] not in pages: fail(c['id']+': page/action binding invalid')
+            if not isinstance(b['request_mapping'],list) or not isinstance(b['response_mapping'],list) or not b['response_mapping']: fail(c['id']+': field mapping required')
+            for mapping in b['request_mapping']:
+                if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['source'],str) or not mapping['source'].strip(): fail('IPC request mapping fields invalid')
+                field_schema(c['request'],mapping['target'])
+            for mapping in b['response_mapping']:
+                if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['target'],str) or not mapping['target'].strip(): fail('IPC response mapping fields invalid')
+                field_schema(c['response'],mapping['source'])
+            for field in ('action','loading_behavior','error_behavior','success_behavior'):
+                if not isinstance(b[field],str) or not b[field].strip(): fail('IPC binding behavior required')
+            channel_pages.add(b['page_id'])
+        channel_ids.add(c['id'])
+    if bound_pages | channel_pages != pages: fail('every page must be bound to HTTP or typed IPC')
     if not isinstance(delivery['prototype_html'],str) or len(delivery['prototype_html'])<500: fail('complete offline HTML prototype required')
 
 
@@ -141,6 +170,16 @@ def write_delivery(data,destination):
         bindings += ['| '+m['target']+' | '+m['source']+' |' for m in b['request_mapping']] or ['无请求参数。']
         bindings += ['\n### 返回值消费\n','| 返回字段 | 前端控件或状态 |\n|---|---|']+['| '+m['source']+' | '+m['target']+' |' for m in b['response_mapping']]
         bindings += ['\n加载：'+b['loading_behavior'],'\n成功：'+b['success_behavior'],'\n错误：'+b['error_behavior']]
+    for c in delivery.get('channels',[]):
+        api_index.append('- ['+c['id']+' · '+c['transport']+' · '+c['command']+'](ipc-contracts.md)')
+        module_api[c['module_id']].append('- ['+c['id']+' · '+c['command']+'](ipc-contracts.md)')
+        bindings.append('\n## '+c['id']+' · '+c['command']+' ('+c['transport']+')')
+        for b in c['bindings']:
+            bindings.append('\n### '+b['page_id']+' · '+b['action'])
+            bindings.append('请求映射：'+json.dumps(b['request_mapping'],ensure_ascii=False))
+            bindings.append('响应映射：'+json.dumps(b['response_mapping'],ensure_ascii=False))
+            bindings.extend([b['loading_behavior'],b['success_behavior'],b['error_behavior']])
+    (destination/'ipc-contracts.md').write_text('# IPC / ACP 消息契约\n\n'+'\n\n'.join('## '+c['id']+' · '+c['command']+' ('+c['transport']+')\n\n处理模块 '+c['module_id']+' / '+c['task_id']+'\n\n'+ '\n\n'.join('### '+field+'\n\n'+table(c[field])+'\n\n'+json_block(c[field+'_example']) for field in ('request','response','error')) for c in delivery.get('channels',[])))
     (destination/'api-contracts.md').write_text('\n\n'.join(api_index));(destination/'frontend-bindings.md').write_text('\n'.join(bindings))
     for m in data['modules']:
         p=destination/'modules'/(m['id']+'.md');body=p.read_text(); old=m['interfaces_markdown'];new='\n\n'.join(module_api[m['id']])+'\n\n[完整接口目录](../api-contracts.md) · [页面参数映射](../frontend-bindings.md)\n\n### 内部程序接口\n\n'+old
