@@ -41,6 +41,7 @@ class DesignTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder, patch.object(issue_agent, 'OUT', Path(folder)), patch.object(issue_agent, 'invoke_dsh', return_value=json.dumps(example())) as invoke:
             answer = issue_agent.design_with_repair(json.dumps(invalid), ['dsh'], 'original requirements', 'detailed')
             self.assertIn('TASK-01.batch', answer)
+            self.assertNotIn('](modules/', answer)
             invoke.assert_called_once()
             self.assertIn('WrapperRequest', invoke.call_args.args[1])
             self.assertIn('BookBatch', invoke.call_args.args[1])
