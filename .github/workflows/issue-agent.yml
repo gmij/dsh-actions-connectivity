@@ -78,7 +78,7 @@ jobs:
     needs: route
     if: needs.route.outputs.run == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 18
+    timeout-minutes: 25
     permissions:
       contents: read
       copilot-requests: write
