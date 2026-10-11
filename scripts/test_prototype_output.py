@@ -1,11 +1,27 @@
 import json
+from html.parser import HTMLParser
 from pathlib import Path
 import tempfile
 import unittest
-from prototype_output import write_bundle
+from prototype_output import POLICY, write_bundle
 
 
 class PrototypeTests(unittest.TestCase):
+    def test_csp_quotes_are_literal_and_policy_is_preserved(self):
+        class Reader(HTMLParser):
+            policies = []
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == 'meta' and attrs.get('http-equiv') == 'Content-Security-Policy':
+                    self.policies.append(attrs['content'])
+        with tempfile.TemporaryDirectory() as tmp:
+            write_bundle(json.dumps(self.data()), Path(tmp))
+            html = (Path(tmp) / 'index.html').read_text()
+            reader = Reader()
+            reader.feed(html)
+            self.assertEqual(reader.policies, [POLICY])
+            self.assertNotIn('&#39;', html)
+
     def data(self, needed=True):
         return dict(needs_prototype=needed, decision_reason='界面流程需要验证' if needed else '纯后端任务', requirements_markdown='目标用户与验收条件', design_markdown='紧凑响应式布局', prototype_html='<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>'+('演示'*250)+'</body></html>' if needed else '')
 
