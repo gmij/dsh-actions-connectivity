@@ -42,6 +42,34 @@ class StagedDesignTests(unittest.TestCase):
             with self.assertRaises(json.JSONDecodeError):
                 parse_stage_json(value)
 
+    def test_redundant_matching_envelope_is_ignored(self):
+        fragments = {
+            'core': {'schema_version': 2, 'level': 'overview',
+                     'summary_markdown': 'S', 'design_markdown': 'D', 'experience': {},
+                     'milestones': [], 'modules': [], 'decisions': []},
+            'tasks': {'schema_version': 2, 'level': 'overview', 'task_records': []},
+            'pages': {'page_records': []}, 'apis': {'apis': []},
+            'bindings': {'bindings': []}, 'channels': {'channels': []},
+            'prototype': {'prototype_html': ''},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            data = json.loads(generate_staged('brief', 'overview', directory,
+                                              lambda prompt, name: json.dumps(fragments[name])))
+            self.assertEqual(data['task_records'], [])
+            self.assertEqual(json.loads(Path(directory, 'stage-tasks.json').read_text()), {'task_records': []})
+
+    def test_conflicting_envelope_is_rejected(self):
+        fragments = {
+            'core': {'schema_version': 2, 'level': 'overview',
+                     'summary_markdown': 'S', 'design_markdown': 'D', 'experience': {},
+                     'milestones': [], 'modules': [], 'decisions': []},
+            'tasks': {'schema_version': 1, 'level': 'overview', 'task_records': []},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, 'conflicting schema_version'):
+                generate_staged('brief', 'overview', directory,
+                                lambda prompt, name: json.dumps(fragments[name]))
+
     def test_invalid_stage_does_not_advance(self):
         with tempfile.TemporaryDirectory() as directory:
             calls = []
