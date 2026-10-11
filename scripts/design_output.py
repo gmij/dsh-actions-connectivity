@@ -220,6 +220,34 @@ PAGE = {'id', 'title', 'route', 'layout_markdown', 'user_actions', 'states', 'ap
 LAYERS = {'frontend', 'backend', 'integration', 'documentation'}
 
 
+def normalize_wire(data):
+    """Compile flat transport records to module-owned canonical V2; never infer ownership."""
+    if not isinstance(data, dict) or 'task_records' not in data:
+        return data
+    fields = {'schema_version', 'level', 'summary_markdown', 'design_markdown', 'experience', 'milestones', 'modules', 'decisions', 'task_records', 'page_records'}
+    if data.get('level') == 'detailed': fields.add('overview_update_markdown')
+    if set(data) != fields: raise ValueError('Wire fields must exactly match the supplied V2 transport schema')
+    keys = {'id', 'title', 'responsibility', 'boundary', 'design_markdown', 'interfaces_markdown', 'frontend_applicable', 'frontend_reason', 'frontend_markdown', 'backend_applicable', 'backend_reason', 'backend_markdown', 'documentation_deliverables', 'documentation_acceptance'}
+    if not isinstance(data['modules'], list) or not 1 <= len(data['modules']) <= 20: raise ValueError('Expected bounded modules')
+    modules = {}
+    for m in data['modules']:
+        if not isinstance(m, dict) or set(m) != keys or not isinstance(m['id'], str) or m['id'] in modules: raise ValueError('Invalid wire module fields/duplicate ID')
+        modules[m['id']] = {k: m[k] for k in ['id','title','responsibility','boundary','design_markdown','interfaces_markdown']} | {
+            'frontend': {'applicable': m['frontend_applicable'], 'reason': m['frontend_reason'], 'design_markdown': m['frontend_markdown'], 'pages': []},
+            'backend': {'applicable': m['backend_applicable'], 'reason': m['backend_reason'], 'design_markdown': m['backend_markdown']},
+            'documentation': {'deliverables': m['documentation_deliverables'], 'acceptance': m['documentation_acceptance']}, 'tasks': []}
+    for field, required, target, limit in [('task_records',V2_TASK,'tasks',30),('page_records',PAGE,'pages',40)]:
+        records = data[field]
+        if not isinstance(records,list) or len(records)>limit: raise ValueError('Invalid wire records')
+        for record in records:
+            if not isinstance(record,dict) or set(record) != required | {'module_id'} or not isinstance(record['module_id'],str) or record['module_id'] not in modules:
+                raise ValueError('Wire record must explicitly reference one existing module_id')
+            value = {k: record[k] for k in required}
+            module = modules[record['module_id']]
+            (module['tasks'] if target=='tasks' else module['frontend']['pages']).append(value)
+    return {k:v for k,v in data.items() if k not in {'task_records','page_records','modules'}} | {'modules':list(modules.values())}
+
+
 def validate_v2(data, level):
     fields = {'schema_version', 'level', 'summary_markdown', 'design_markdown', 'experience', 'milestones', 'modules', 'decisions'}
     if level == 'detailed': fields.add('overview_update_markdown')
@@ -262,7 +290,7 @@ def validate_v2(data, level):
             if not isinstance(task, dict) or set(task) != V2_TASK or task['layer'] not in LAYERS:
                 raise ValueError('Each task needs explicit layer and MVP milestone_id')
             if task['layer'] == 'frontend' and not frontend['applicable']:
-                raise ValueError('Frontend task requires applicable page design in its module')
+                raise ValueError(f"{module['id']}/{task['id']}: frontend task requires this module frontend.applicable=true and actual page contracts; move the task to the UI module or supply its page design")
             if task['layer'] == 'backend' and not backend['applicable']:
                 raise ValueError('Backend task requires applicable backend design in its module')
             flat.append(task)
@@ -326,7 +354,7 @@ def validate_v2(data, level):
 
 
 def validate(data, level):
-    return validate_v2(data, level) if isinstance(data, dict) and 'schema_version' in data else validate_legacy(data, level)
+    return validate_v2(normalize_wire(data), level) if isinstance(data, dict) and 'schema_version' in data else validate_legacy(data, level)
 
 
 def render_milestones(data):
@@ -408,5 +436,5 @@ def write_bundle(raw, destination, level, require_current=False):
     data = json.loads(cleaned)
     if require_current and (not isinstance(data, dict) or data.get('schema_version') != 2):
         raise ValueError('New designs must use schema_version=2, milestones and module-owned tasks; V1 is only for historical Wiki artifacts')
-    if isinstance(data, dict) and 'schema_version' in data: return write_v2_bundle(data, destination, level)
+    if isinstance(data, dict) and 'schema_version' in data: return write_v2_bundle(normalize_wire(data), destination, level)
     return write_legacy_bundle(raw, destination, level)
