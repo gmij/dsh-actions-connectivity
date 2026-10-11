@@ -1,0 +1,70 @@
+name: DSH Copilot inference
+on:
+  push:
+    paths: ['.github/workflows/dsh-copilot.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  copilot-requests: write
+jobs:
+  inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix "$RUNNER_TEMP/dsh" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-alpha.2
+      - name: Configure native Copilot adapter
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/copilot.patch.yml" <<'JSON'
+          [
+            {
+              "id": "agent-default-model",
+              "config": {
+                "provider": "github-copilot",
+                "model": "gpt-5.4-mini"
+              }
+            },
+            {
+              "id": "llm-pi-ai",
+              "config": {
+                "providers": {
+                  "github-copilot": {
+                    "apiKeyEnv": "GITHUB_TOKEN",
+                    "models": [
+                      {
+                        "id": "gpt-5.4-mini"
+                      }
+                    ],
+                    "retryPolicy": {
+                      "mode": "normal",
+                      "maxRetries": 0
+                    }
+                  }
+                }
+              }
+            }
+          ]
+          JSON
+      - name: DSH model inference
+        timeout-minutes: 2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/dsh/node_modules/.bin/dsh" \
+            --profile headless --patch "$RUNNER_TEMP/copilot.patch.yml" --json \
+            "Reply with exactly DSH_COPILOT_OK. Do not use any tools." \
+            > "$RUNNER_TEMP/result.jsonl" 2> "$RUNNER_TEMP/errors.log"
+          cat "$RUNNER_TEMP/result.jsonl"
+          grep -q DSH_COPILOT_OK "$RUNNER_TEMP/result.jsonl"
+      - name: Diagnostics
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/errors.log" ]; then cat "$RUNNER_TEMP/errors.log"; fi
+          if [ -f "$RUNNER_TEMP/result.jsonl" ]; then cat "$RUNNER_TEMP/result.jsonl"; fi
