@@ -92,6 +92,14 @@ def generate_staged(original, level, out_dir, invoke):
             except json.JSONDecodeError as exc:
                 prefix = response.lstrip()[:80].replace("\\n", " ")
                 raise ValueError(f"Design stage {name} returned non-JSON/incomplete text ({len(response)} chars; leading={prefix!r}): {exc}") from exc
+        if name != "core" and isinstance(fragment, dict):
+            # Models sometimes repeat the common wire envelope in later stages.
+            # It is safe to ignore ONLY values matching the authoritative core.
+            for envelope in ("schema_version", "level"):
+                if envelope in fragment:
+                    if fragment[envelope] != assembled.get(envelope):
+                        raise ValueError(f"Design stage {name} conflicting {envelope}")
+                    fragment.pop(envelope)
         required = set(fields)
         if name == "core" and level == "detailed":
             required.add("overview_update_markdown")
