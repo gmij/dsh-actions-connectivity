@@ -1,0 +1,129 @@
+name: Issue DSH agent
+run-name: "DSH Issue #${{ github.event.issue.number || inputs.issue_number || 'setup' }}"
+on:
+  issues:
+    types: [opened, labeled, assigned, reopened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing open Issue number
+        required: true
+        type: string
+      agent:
+        description: Registered agent ID (empty uses Issue selection)
+        required: false
+        default: ''
+        type: string
+      force:
+        description: Retry an identical task (including a failed or cancelled run)
+        default: false
+        type: boolean
+  push:
+    paths: ['agents/registry.json', '.github/workflows/issue-agent.yml']
+permissions:
+  contents: read
+concurrency:
+  group: dsh-issue-${{ github.event.issue.number || inputs.issue_number || 'setup' }}
+  cancel-in-progress: false
+jobs:
+  setup:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python scripts/issue_agent.py setup
+        env:
+          GH_TOKEN: ${{ github.token }}
+  route:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      run: ${{ steps.route.outputs.run }}
+      agent: ${{ steps.route.outputs.agent }}
+      issue_number: ${{ steps.route.outputs.issue_number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: route
+        run: python scripts/issue_agent.py route
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        if: steps.route.outputs.run == 'true'
+        with:
+          name: issue-agent-input
+          path: ${{ runner.temp }}/issue-agent/
+          retention-days: 7
+  agent:
+    needs: route
+    if: needs.route.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      copilot-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: issue-agent-input
+          path: ${{ runner.temp }}/issue-agent/
+      - run: npm install --prefix "$RUNNER_TEMP/dsh" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-alpha.2
+      - name: Run registered DSH agent
+        run: python scripts/issue_agent.py run
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+      - name: Diagnostics
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/issue-agent/errors.log" ]; then cat "$RUNNER_TEMP/issue-agent/errors.log"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue-agent-result
+          path: |
+            ${{ runner.temp }}/issue-agent/answer.md
+            ${{ runner.temp }}/issue-agent/result.jsonl
+            ${{ runner.temp }}/issue-agent/errors.log
+          if-no-files-found: ignore
+          retention-days: 7
+  publish:
+    needs: [route, agent]
+    if: always() && needs.route.result == 'success' && needs.route.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: issue-agent-result
+          path: ${{ runner.temp }}/issue-agent/
+      - name: Report result to Issue
+        run: python scripts/issue_agent.py publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
+          AGENT_ID: ${{ needs.route.outputs.agent }}
+          AGENT_RESULT: ${{ needs.agent.result }}
