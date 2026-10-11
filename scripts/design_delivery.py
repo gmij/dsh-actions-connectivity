@@ -110,7 +110,7 @@ def validate_delivery(data, required=False):
     channel_ids=set(); channel_pages=set()
     for c in channels:
         keys={'id','module_id','task_id','transport','command','request','request_example','response','response_example','error','error_example','bindings'}
-        if not isinstance(c,dict) or set(c)!=keys or not isinstance(c['id'],str) or not re.fullmatch(r'IPC-\\d{2,3}',c['id']) or c['id'] in channel_ids: fail('typed IPC identity/fields invalid')
+        if not isinstance(c,dict) or set(c)!=keys or not isinstance(c['id'],str) or not re.fullmatch(r'IPC-\d{2,3}',c['id']) or c['id'] in channel_ids: fail('typed IPC identity/fields invalid')
         if c['transport'] not in {'vscode-webview','vscode-command','acp','process-stdio','ipc'}: fail(c['id']+': unsupported IPC transport')
         if not isinstance(c['command'],str) or not c['command'].strip(): fail(c['id']+': command/event name required')
         if c['module_id'] not in modules or c['task_id'] not in tasks or tasks[c['task_id']][0]!=c['module_id']: fail(c['id']+': channel owner task/module invalid')
