@@ -34,7 +34,7 @@
       "enabled": true,
       "label": "agent:overview",
       "patch": "agents/overview.patch.json",
-      "model": "gpt-5.4",
+      "model": "claude-haiku-5.5",
       "mode": "design",
       "design_level": "overview"
     },
@@ -44,7 +44,7 @@
       "enabled": true,
       "label": "agent:detailed",
       "patch": "agents/detailed.patch.json",
-      "model": "gpt-5.4",
+      "model": "claude-haiku-5.5",
       "mode": "design",
       "design_level": "detailed"
     }
