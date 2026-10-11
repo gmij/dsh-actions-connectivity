@@ -50,7 +50,7 @@
       "mode": "design",
       "design_level": "detailed",
       "api": "anthropic-messages",
-      "max_output_tokens": 65536
+      "max_output_tokens": 131072
     }
   }
 }
