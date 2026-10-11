@@ -153,7 +153,7 @@ jobs:
           path: ${{ runner.temp }}/capture-input
       - name: Install isolated screenshot renderer
         run: |
-          npm install --prefix "$RUNNER_TEMP/render" --no-audit --no-fund playwright
+          npm install --prefix "$RUNNER_TEMP/render" --no-audit --no-fund playwright@1.64.0
           "$RUNNER_TEMP/render/node_modules/.bin/playwright" install chromium --with-deps
       - name: Capture desktop and mobile prototype screenshots
         run: node scripts/capture_prototype.mjs
