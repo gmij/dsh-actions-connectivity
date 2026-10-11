@@ -89,3 +89,29 @@ class MilestoneDependencyTests(unittest.TestCase):
         validate(data, 'detailed')
         data['modules'][1]['tasks'][0]['depends_on'].append('TASK-05')
         with self.assertRaisesRegex(ValueError, 'future/unrelated'): validate(data,'detailed')
+
+
+def wire_example():
+    data=example2()
+    result={k:v for k,v in data.items() if k!='modules'}
+    result.update(modules=[],task_records=[],page_records=[])
+    for m in data['modules']:
+        result['modules'].append({k:m[k] for k in ['id','title','responsibility','boundary','design_markdown','interfaces_markdown']} | {'frontend_applicable':m['frontend']['applicable'],'frontend_reason':m['frontend']['reason'],'frontend_markdown':m['frontend']['design_markdown'],'backend_applicable':m['backend']['applicable'],'backend_reason':m['backend']['reason'],'backend_markdown':m['backend']['design_markdown'],'documentation_deliverables':m['documentation']['deliverables'],'documentation_acceptance':m['documentation']['acceptance']})
+        result['task_records'] += [dict(t,module_id=m['id']) for t in m['tasks']]
+        result['page_records'] += [dict(p,module_id=m['id']) for p in m['frontend']['pages']]
+    return result
+
+
+class WireContractTests(unittest.TestCase):
+    def test_transport_records_compile_to_module_owned_canonical_design(self):
+        from design_output import normalize_wire
+        self.assertEqual(normalize_wire(wire_example()),example2())
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder)
+            write_bundle(json.dumps(wire_example()),p,'detailed',require_current=True)
+            self.assertEqual(json.loads((p/'design.json').read_text()),example2())
+            self.assertIn('UI-01',(p/'modules/MOD-02.md').read_text())
+        data=wire_example();data['task_records'][0]['module_id']='MOD-99'
+        with self.assertRaises(ValueError):validate(data,'detailed')
+        data=wire_example();data['modules'][1]['frontend_applicable']=False
+        with self.assertRaises(ValueError):validate(data,'detailed')
