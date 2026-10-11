@@ -21,7 +21,10 @@ def example():
     consumer['inputs'] = [{'name': 'batch', 'type': 'BookBatch', 'source': 'TASK-01.batch', 'required': True, 'validation': '批次内复合键唯一'}]
     consumer['outputs'] = [{'name': 'report', 'type': 'ImportReport', 'destination': '运营与监控', 'guarantee': '报告成功与拒绝数量'}]
     return {'level': 'detailed', 'summary_markdown': '供应商导入范围与假设', 'design_markdown': '复合唯一键为 supplierId/externalId，事务按批次划分。',
-            'tasks': [task, consumer], 'decisions': [{'id': 'DEC-01', 'pattern': 'Adapter', 'problem': '不同供应商字段不一致', 'rationale': '隔离外部协议', 'alternatives': '直接调用较简单但字段转换分散', 'tradeoffs': '增加适配器维护成本，仅用于多协议', 'implementation': 'ISupplierAdapter.Map', 'tasks': ['TASK-01']}]}
+            'tasks': [task, consumer], 'decisions': [{'id': 'DEC-01', 'pattern': 'Adapter', 'problem': '不同供应商字段不一致', 'rationale': '隔离外部协议', 'alternatives': '直接调用较简单但字段转换分散', 'tradeoffs': '增加适配器维护成本，仅用于多协议', 'implementation': 'ISupplierAdapter.Map', 'tasks': ['TASK-01']}],
+            'overview_update_markdown': '概要修订：供应商适配模块输出 BookBatch，持久化模块消费该契约；里程碑先适配再持久化。',
+            'modules': [{'id': 'MOD-01', 'title': '供应商适配', 'responsibility': '隔离外部协议', 'boundary': '不写数据库', 'task_ids': ['TASK-01'], 'design_markdown': '验证并转换供应商输入。'},
+                        {'id': 'MOD-02', 'title': '书目持久化', 'responsibility': '幂等写入', 'boundary': '不访问供应商', 'task_ids': ['TASK-02'], 'design_markdown': '消费 BookBatch 并提交短事务。'}]}
 
 
 class DesignTests(unittest.TestCase):
@@ -57,7 +60,22 @@ class DesignTests(unittest.TestCase):
             answer = write_bundle(json.dumps(example()), Path(folder), 'detailed')
             self.assertIn('为什么采用', answer)
             self.assertIn('TASK-01.batch', answer)
-            self.assertEqual({p.name for p in Path(folder).iterdir()}, {'design.md', 'task-contracts.md', 'decisions.md', 'design.json', 'README.md'})
+            self.assertEqual({p.name for p in Path(folder).iterdir()}, {'design.md', 'task-contracts.md', 'decisions.md', 'design.json', 'README.md', 'modules', 'overview-update.md'})
+            self.assertIn('TASK-01.batch', (Path(folder) / 'modules/MOD-02.md').read_text())
+            self.assertIn('MOD-01', (Path(folder) / 'design.md').read_text())
+
+    def test_modules_require_complete_unique_task_ownership_and_overview_sync(self):
+        for change in ['missing', 'duplicate', 'unknown', 'overview', 'large']:
+            data = example()
+            if change == 'missing': data['modules'].pop()
+            if change == 'duplicate': data['modules'][1]['task_ids'] = ['TASK-01', 'TASK-02']
+            if change == 'unknown': data['modules'][0]['task_ids'] = ['TASK-99']
+            if change == 'overview': data['overview_update_markdown'] = ''
+            if change == 'large':
+                data['modules'] = [data['modules'][0]]
+                data['modules'][0]['task_ids'] = ['TASK-01', 'TASK-02']
+                data['modules'][0]['design_markdown'] = 'x' * 21000
+            with self.assertRaises(ValueError): validate(data, 'detailed')
 
     def test_consumer_name_and_type_must_match_producer(self):
         for field, value in [('source', 'TASK-01.missing'), ('type', 'DifferentType')]:
@@ -90,6 +108,7 @@ class DesignTests(unittest.TestCase):
         data = example(); data['decisions'] = []; data['tasks'][0]['patterns'] = []
         validate(data, 'detailed')
         data['level'] = 'overview'
+        data.pop('modules'); data.pop('overview_update_markdown')
         validate(data, 'overview')
 
     def test_invalid_json_level_or_extra_path_never_writes(self):
