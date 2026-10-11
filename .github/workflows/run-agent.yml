@@ -1,0 +1,79 @@
+name: Run DSH agent
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Copilot model ID present in both the Actions inventory and DSH catalog
+        default: gpt-5.4-mini
+        required: true
+        type: string
+      agent:
+        description: DSH agent persona overlay
+        default: connectivity
+        required: true
+        type: choice
+        options: [connectivity, reviewer]
+      task:
+        description: Task given to DSH
+        default: Reply with exactly DSH_COPILOT_OK. Do not use tools.
+        required: true
+        type: string
+permissions:
+  contents: read
+  copilot-requests: write
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix "$RUNNER_TEMP/dsh" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-alpha.2
+      - name: Configure selected model
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          python - <<'PY'
+          import json, os
+          model = os.environ['MODEL']
+          patch = [
+            {"id":"agent-default-model","config":{"provider":"github-copilot","model":model}},
+            {"id":"llm-pi-ai","config":{"providers":{"github-copilot":{
+              "apiKeyEnv":"GITHUB_TOKEN","baseURL":"https://api.githubcopilot.com",
+              "headers":{"Copilot-Integration-Id":"agentic-workflows"},
+              "models":[{"id":model}],"retryPolicy":{"mode":"normal","maxRetries":0}
+            }}}}
+          ]
+          with open(os.environ['RUNNER_TEMP']+'/model.patch.json','w') as f:
+            json.dump(patch,f)
+          PY
+      - name: Run selected DSH agent
+        timeout-minutes: 3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DSH_HOME: ${{ runner.temp }}/dsh-home
+          AGENT: ${{ inputs.agent }}
+          TASK: ${{ inputs.task }}
+        run: |
+          case "$AGENT" in connectivity|reviewer) ;; *) exit 2 ;; esac
+          "$RUNNER_TEMP/dsh/node_modules/.bin/dsh" --profile headless \
+            --patch "$RUNNER_TEMP/model.patch.json" \
+            --patch "agents/$AGENT.patch.json" --json "$TASK" \
+            > "$RUNNER_TEMP/result.jsonl" 2> "$RUNNER_TEMP/errors.log"
+          python - <<'PY'
+          import json, os
+          events=[json.loads(line) for line in open(os.environ['RUNNER_TEMP']+'/result.jsonl') if line.strip()]
+          assert any(e.get('type')=='final' and e.get('text','').strip() for e in events), 'Missing final response'
+          assert any(e.get('phase')=='turn_end' and e.get('reason',{}).get('kind')=='completed' for e in events), 'Agent turn did not complete'
+          if os.environ['TASK']=='Reply with exactly DSH_COPILOT_OK. Do not use tools.':
+            assert any(e.get('type')=='final' and e.get('text','').strip()=='DSH_COPILOT_OK' for e in events), 'Connectivity marker missing'
+          PY
+      - name: Show result
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/errors.log" ]; then cat "$RUNNER_TEMP/errors.log"; fi
+          if [ -f "$RUNNER_TEMP/result.jsonl" ]; then cat "$RUNNER_TEMP/result.jsonl"; fi
