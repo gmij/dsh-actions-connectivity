@@ -1,32 +1,32 @@
 # DSH + GitHub Actions + Copilot
 
-这是私有测试仓库。已实测 DSH 原生 headless 模型调用成功：Actions → DSH → GitHub Copilot gpt-5.4-mini → DSH JSON 输出。
+这是私有测试仓库，已验证 DSH headless 在 Actions 中使用 Copilot gpt-5.4-mini 完成推理。
 
-## Issue 自动指派与后台运行
+## 原生下拉框选择 agent
 
-可用角色清单见 [agents/registry.json](agents/registry.json)，目前启用 connectivity 和 reviewer。
+Issue 右侧 Assign to Agent → Custom agent：
+- Reviewer (Copilot)
+- Connectivity (Copilot)
 
-- 新建 Issue：选择“指派 DSH agent”模板，在 Agent 下拉框选择角色，填写 Task，提交即自动执行。
-- 已有 Issue：添加 `agent:reviewer` 或 `agent:connectivity` 标签自动启动。
-- 状态、结果和 Actions 链接自动回写 Issue；同一 Issue 串行，相同任务去重。
-- 这两个角色目前执行分析/审查，工具在 Issue 工作流中被禁用，不改代码、不创建 PR。
-- DSH 角色通过表单/标签选择，不是 GitHub 原生 Assignee 账号。
+两个选项已在 GitHub 页面实际验证可见，无需标签。配置位于 .github/agents/*.agent.md。
+它们由 Copilot Cloud Agent 执行，不启动 DSH；本轮只验证了选项显示，没有运行原生任务。
+参见 [NATIVE-AGENTS.md](NATIVE-AGENTS.md)。“原生指派 → DSH Actions”调度桥接尚未实现。
 
-新增角色、停用、并发和重试说明见 [agents/README.md](agents/README.md)。
+## DSH Issue 自动化
 
-## 手动运行指定 agent
+DSH 可用角色见 [agents/registry.json](agents/registry.json)，目前启用 connectivity 和 reviewer。
+新建 Issue 可选择“指派 DSH agent”模板，在 Agent 字段选择角色。
+已有 Issue 可添加 agent:reviewer 或 agent:connectivity 标签自动运行。
+状态、结果和运行链接回写 Issue；同一 Issue 串行，相同任务去重。
+Issue 自动化为禁工具的 analysis 模式，输出审查建议，不修改代码或创建 PR。
+原生 bot agent 的 assigned 事件会跳过 DSH 路由，避免同一次指派重复启动两套引擎。
+详见 [agents/README.md](agents/README.md) 和 [ISSUE-AUTOMATION-VERIFIED.md](ISSUE-AUTOMATION-VERIFIED.md)。
 
-1. 打开 [Run DSH agent](https://github.com/gmij/dsh-actions-connectivity/actions/workflows/run-agent.yml)。
-2. 点击 Run workflow。
-3. 选择 `model`（默认 gpt-5.4-mini）、`agent`（connectivity / reviewer），填写 `task`。
-4. 打开运行记录，查看 Show result 的 JSONL 和 final 输出。
+## 手动运行 DSH
 
-只使用 Actions 临时令牌，workflow 声明 `copilot-requests: write`，没有保存个人 PAT。
-模型 ID 需要同时被当前 Actions 身份及 DSH 的 pi-ai 目录支持。
-agent 通过 `agents/*.patch.json` 配置系统提示词；headless CLI 的配置 overlay 支持重复 `--patch`，没有直接 `--agent` 参数。
-角色提示词不等同于工具权限隔离。
-
-## 测试记录
-
-见 [TEST-RESULTS.md](TEST-RESULTS.md)。你在 Copilot 网页配置的 DeepSeek 可回复，但当前个人仓库 Actions 身份列出的模型不含 DeepSeek。
-目前仅验证文本推理，未测试修改代码、执行工具或发布 PR。
+Actions → Run DSH agent → Run workflow，选择 model、agent、task。
+只使用 Actions 临时 GITHUB_TOKEN 和 copilot-requests:write，无个人 PAT。
+DSH 通过重复 --patch 选择模型配置和角色；模型 ID 必须被 Actions 身份及 DSH 目录支持。
+原先的手动模板没有应用 Issue 自动化的禁工具 overlay。
+见 [TEST-RESULTS.md](TEST-RESULTS.md) 和 [AGENT-RUN-VERIFIED.md](AGENT-RUN-VERIFIED.md)。
+Copilot 网页的 DeepSeek BYOK 在当前个人仓库 Actions 身份下不可见。
