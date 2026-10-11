@@ -2,7 +2,19 @@
 
 这是私有测试仓库。已实测 DSH 原生 headless 模型调用成功：Actions → DSH → GitHub Copilot gpt-5.4-mini → DSH JSON 输出。
 
-## 运行指定 agent
+## Issue 自动指派与后台运行
+
+可用角色清单见 [agents/registry.json](agents/registry.json)，目前启用 connectivity 和 reviewer。
+
+- 新建 Issue：选择“指派 DSH agent”模板，在 Agent 下拉框选择角色，填写 Task，提交即自动执行。
+- 已有 Issue：添加 `agent:reviewer` 或 `agent:connectivity` 标签自动启动。
+- 状态、结果和 Actions 链接自动回写 Issue；同一 Issue 串行，相同任务去重。
+- 这两个角色目前执行分析/审查，工具在 Issue 工作流中被禁用，不改代码、不创建 PR。
+- DSH 角色通过表单/标签选择，不是 GitHub 原生 Assignee 账号。
+
+新增角色、停用、并发和重试说明见 [agents/README.md](agents/README.md)。
+
+## 手动运行指定 agent
 
 1. 打开 [Run DSH agent](https://github.com/gmij/dsh-actions-connectivity/actions/workflows/run-agent.yml)。
 2. 点击 Run workflow。
