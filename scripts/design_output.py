@@ -6,6 +6,7 @@ IO = {'name', 'type', 'source', 'required', 'validation'}
 OUTPUT = {'name', 'type', 'destination', 'guarantee'}
 TASK = {'id', 'title', 'goal', 'depends_on', 'inputs', 'outputs', 'steps', 'failure_handling', 'acceptance', 'tests', 'patterns'}
 DECISION = {'id', 'pattern', 'problem', 'rationale', 'alternatives', 'tradeoffs', 'implementation', 'tasks'}
+MODULE = {'id', 'title', 'responsibility', 'boundary', 'task_ids', 'design_markdown'}
 
 
 def text(value, max_length=15000):
@@ -22,7 +23,10 @@ def strings(values, required=True):
 
 
 def validate(data, level):
-    if not isinstance(data, dict) or set(data) != {'level', 'summary_markdown', 'design_markdown', 'decisions', 'tasks'} or data['level'] != level or level not in {'overview', 'detailed'}:
+    fields = {'level', 'summary_markdown', 'design_markdown', 'decisions', 'tasks'}
+    if level == 'detailed':
+        fields |= {'modules', 'overview_update_markdown'}
+    if not isinstance(data, dict) or set(data) != fields or data['level'] != level or level not in {'overview', 'detailed'}:
         raise ValueError('Invalid design output contract')
     text(data['summary_markdown']); text(data['design_markdown'], max_length=100000)
     tasks = data['tasks']
@@ -88,6 +92,31 @@ def validate(data, level):
         active.remove(identifier); visited.add(identifier)
     for identifier in indexed:
         visit(identifier)
+    if level == 'detailed':
+        text(data['overview_update_markdown'], max_length=30000)
+        modules = data['modules']
+        if not isinstance(modules, list) or not 1 <= len(modules) <= 20:
+            raise ValueError('Detailed design requires a module plan and revised overview chapter')
+        module_ids, assigned = set(), set()
+        for module in modules:
+            if not isinstance(module, dict) or set(module) != MODULE or not re.fullmatch(r'MOD-\d{2,3}', module['id']):
+                raise ValueError('Invalid module fields or ID; use MOD-01 identifiers')
+            if module['id'] in module_ids:
+                raise ValueError('Duplicate module ID')
+            module_ids.add(module['id'])
+            for key in ['title', 'responsibility', 'boundary']:
+                text(module[key])
+            text(module['design_markdown'], max_length=30000)
+            strings(module['task_ids'])
+            for identifier in module['task_ids']:
+                if identifier not in indexed or identifier in assigned:
+                    raise ValueError(f'Module {module["id"]}: task {identifier} must exist and belong to exactly one module')
+                assigned.add(identifier)
+        if assigned != set(indexed):
+            raise ValueError(f'Every task must have a module; missing {sorted(set(indexed) - assigned)}')
+        size = len(data['design_markdown']) + sum(len(m['design_markdown']) for m in modules)
+        if (size > 20000 or len(tasks) >= 6) and len(modules) < 2:
+            raise ValueError('Large detailed design must split into responsibility-based modules and update overview; do not merely expand one document')
     decisions = data['decisions']
     if not isinstance(decisions, list) or len(decisions) > 30:
         raise ValueError('Invalid decisions')
@@ -159,9 +188,23 @@ def write_bundle(raw, destination, level):
     contracts, decisions = render(data)
     destination.mkdir(parents=True, exist_ok=True)
     title = '概要设计' if level == 'overview' else '详细设计'
-    (destination / 'design.md').write_text(f'# {title}\n\n{data["summary_markdown"]}\n\n{data["design_markdown"]}', encoding='utf-8')
+    module_index = ''
+    if level == 'detailed':
+        owners = {identifier: module['id'] for module in data['modules'] for identifier in module['task_ids']}
+        module_index = '\n## 模块索引与依赖\n\n| 模块 | 职责与边界 | 任务 | 上游模块 |\n|---|---|---|---|\n'
+        (destination / 'modules').mkdir()
+        for module in data['modules']:
+            deps = sorted({owners[dep] for task in data['tasks'] if task['id'] in module['task_ids'] for dep in task['depends_on'] if owners[dep] != module['id']})
+            module_index += '| ' + ' | '.join(cell(v) for v in [f"[{module['id']} · {module['title']}](modules/{module['id']}.md)", module['responsibility'] + '；' + module['boundary'], '、'.join(module['task_ids']), '、'.join(deps) or '无']) + ' |\n'
+            subset = {**data, 'tasks': [t for t in data['tasks'] if t['id'] in module['task_ids']], 'decisions': [d for d in data['decisions'] if set(d['tasks']) & set(module['task_ids'])]}
+            module_contracts, module_decisions = render(subset)
+            body = f"# {module['id']} · {module['title']}\n\n职责：{module['responsibility']}\n\n边界：{module['boundary']}\n\n上游模块：{'、'.join(deps) or '无'}\n\n{module['design_markdown']}\n\n{module_contracts}\n\n{module_decisions}"
+            (destination / 'modules' / f"{module['id']}.md").write_text(body, encoding='utf-8')
+        (destination / 'overview-update.md').write_text(data['overview_update_markdown'], encoding='utf-8')
+    (destination / 'design.md').write_text(f'# {title}\n\n{data["summary_markdown"]}\n{module_index}\n{data["design_markdown"]}', encoding='utf-8')
     (destination / 'task-contracts.md').write_text(contracts, encoding='utf-8')
     (destination / 'decisions.md').write_text(decisions, encoding='utf-8')
     (destination / 'design.json').write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-    (destination / 'README.md').write_text('设计提案，尚未执行代码开发。design.md 为正文，task-contracts.md 为逐任务输入输出及验收，decisions.md 为选择理由，design.json 为可校验契约。\n', encoding='utf-8')
-    return f'# {title}\n\n{data["summary_markdown"]}\n\n{data["design_markdown"]}\n\n{decisions}\n\n{contracts}'
+    (destination / 'README.md').write_text('设计提案，尚未执行代码开发。design.md 为正文与模块索引，task-contracts.md 为逐任务输入输出及验收，decisions.md 为选择理由，design.json 为可校验契约。详细设计的 modules/ 为各模块独立文档，overview-update.md 为同步修订后的概要模块章节（未自动覆盖仓库文件）。\n', encoding='utf-8')
+    overview = '\n\n' + data['overview_update_markdown'] if level == 'detailed' else ''
+    return f'# {title}\n\n{data["summary_markdown"]}\n{module_index}{overview}\n\n{data["design_markdown"]}\n\n{decisions}\n\n{contracts}'
