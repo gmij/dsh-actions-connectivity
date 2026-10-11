@@ -14,7 +14,9 @@ class StagedDesignTests(unittest.TestCase):
                      'milestones': [], 'modules': [], 'decisions': []},
             'tasks': {'task_records': []},
             'pages': {'page_records': []},
-            'delivery': {'delivery': {'apis': [], 'bindings': [], 'prototype_html': ''}},
+            'apis': {'apis': []},
+            'bindings': {'bindings': []},
+            'prototype': {'prototype_html': ''},
         }
         calls = []
         with tempfile.TemporaryDirectory() as directory:
@@ -23,8 +25,8 @@ class StagedDesignTests(unittest.TestCase):
                 self.assertIn('只能是', prompt)
                 return json.dumps(fragments[name])
             merged = json.loads(generate_staged('Design brief', 'overview', directory, model))
-            self.assertEqual(set(merged), set().union(*(set(x) for x in fragments.values())))
-            self.assertEqual(calls, ['core', 'tasks', 'pages', 'delivery'])
+            self.assertEqual(set(merged), set(fragments['core']) | {'task_records', 'page_records', 'delivery'})
+            self.assertEqual(calls, ['core', 'tasks', 'pages', 'apis', 'bindings', 'prototype'])
             # Checkpoints must not invoke the model twice for identical run directory.
             again = json.loads(generate_staged('Design brief', 'overview', directory,
                                                 lambda *_: self.fail('unnecessary model call')))
