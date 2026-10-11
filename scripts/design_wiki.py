@@ -93,23 +93,26 @@ def assemble(existing, state, repo, issue, run_id, role, raw):
                 raise ValueError('Immutable wiki version differs from existing content')
             result[filename] = rendered
     state = {**state, key: entry}
-    directory = '# DSH 设计文档目录\n\n按任务阅读概要设计、详细设计、任务契约、模式依据、模块文档与概要修订。\n\n| Issue | 设计 | 最新 DSH 运行 | 版本 |\n|---|---|---|---|\n'
+    directory = '# DSH 设计文档目录\n\n按 MVP 里程碑 → 模块完整设计 → 模块内任务阅读；界面、文档、模式依据和概要同步修订均可从侧栏进入。\n\n| Issue | 设计 | 最新 DSH 运行 | 版本 |\n|---|---|---|---|\n'
     sidebar = '[DSH 文档目录](DSH-Documents)\n'
     for entry in sorted(state.values(), key=lambda e: (e['issue'], e['role'])):
         p = base(entry['issue'], entry['role'])
         title = '概要设计' if entry['role'] == 'overview' else '详细设计'
         directory += f"| #{entry['issue']} | [{title}]({wiki_link(repo, p)}) | {entry['latest']} | [历史]({wiki_link(repo, p + '-History')}) |\n"
-        sidebar += f"\n- [#{entry['issue']} {title}]({p})\n  - [任务输入输出]({p}-Tasks)\n  - [设计决策]({p}-Decisions)\n"
-        for suffix, heading in [('Milestones', 'MVP 里程碑与发布'), ('UI', '界面与交互'), ('Documentation', '文档交付')]:
-            if p + '-' + suffix + '.md' in result:
-                sidebar += f'  - [{heading}]({p}-{suffix})\n'
-        if entry['role'] == 'detailed':
-            sidebar += f'  - [概要同步修订]({p}-Overview-Update)\n'
+        sidebar += f"\n- [#{entry['issue']} {title}]({p})\n"
+        if p + '-Milestones.md' in result:
+            sidebar += f'  - [MVP 里程碑与发布]({p}-Milestones)\n'
         module_pages = sorted(set(re.findall(re.escape(p) + r'-MOD-\d{2,3}(?!\d)', result.get(p + '.md', ''))))
         for page in module_pages:
             heading = re.search(r'^# (MOD-\d{2,3} · .+)$', result.get(page + '.md', ''), re.M)
             module_title = heading[1] if heading else page.split('-MOD-')[1] + ' 模块'
             sidebar += f'  - [{label(module_title)}]({page})\n'
+        for suffix, heading in [('UI', '界面与交互'), ('Documentation', '文档交付')]:
+            if p + '-' + suffix + '.md' in result:
+                sidebar += f'  - [{heading}]({p}-{suffix})\n'
+        sidebar += f'  - [任务索引与契约]({p}-Tasks)\n  - [设计决策]({p}-Decisions)\n'
+        if entry['role'] == 'detailed':
+            sidebar += f'  - [概要同步修订]({p}-Overview-Update)\n'
         history = MARKER + f'\n\n# Issue #{entry["issue"]} · {title}版本\n\n'
         history += '\n'.join(f'- [DSH run {version}]({wiki_link(repo, p + "-Run-" + str(version))})' for version in entry['versions']) + '\n'
         history_name = p + '-History.md'
