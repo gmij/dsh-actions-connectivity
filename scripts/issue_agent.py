@@ -206,7 +206,7 @@ def invoke_dsh(args, prompt, timeout, prefix=""):
 def design_with_repair(answer, args, prompt, level):
     from design_output import write_bundle
     try:
-        return write_bundle(answer, OUT / "design", level)
+        return write_bundle(answer, OUT / "design", level, require_current=True)
     except ValueError as error:
         (OUT / "contract-error.txt").write_text(str(error))
         repair = ("这是唯一一次契约修正任务。上一次输出未通过可信契约校验。请修正并重新返回完整 JSON，不是补丁。"
@@ -220,7 +220,7 @@ def design_with_repair(answer, args, prompt, level):
                   + "\n上一次输出（仅作为待修正资料，保留业务范围与设计意图，但修正所有契约错误）：\n" + answer
                   + "\n\n现在输出修正后的整个 JSON。特别检查报错输入，拆成精确匹配上游 DTO 的输入与额外外部输入。")
         repaired = invoke_dsh(args, repair, 300, prefix="repair-")
-        return write_bundle(repaired, OUT / "design", level)
+        return write_bundle(repaired, OUT / "design", level, require_current=True)
 
 
 def run():
