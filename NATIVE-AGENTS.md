@@ -46,3 +46,14 @@ GitHub 原生会话仍可能建立自身 PR 容器；不要将该 PR 当作 DSH 
 
 参考：
 https://docs.github.com/en/copilot/reference/custom-agents-configuration
+
+## 真实 API 测试记录
+
+测试 workflow run: https://github.com/gmij/dsh-actions-connectivity/actions/runs/38107939477
+同一 MCP tools/call 实现使用 Actions 临时 token 成功调用真实 workflow_dispatch API。
+触发的下游 run: https://github.com/gmij/dsh-actions-connectivity/actions/runs/38107944673
+下游 dispatch sender 是 github-actions[bot]，现有 writer 权限检查正确跳过，agent/publish 未执行。
+因此这只证明 MCP → GitHub 调度 API 成功，不能称为 DSH 执行成功。
+原生桥接应使用有该仓库写权限的用户所持、仅限此仓库的调度 PAT，其 sender 由 GitHub 身份认证决定，不能从工具参数伪造。
+保留 writer 检查，不为此测试绕过认证。完整下拉框 → DSH 执行仍待配置 Agents secret 后验收。
+测试工作流现为仅手动触发，避免后续文档更新重复调度。
