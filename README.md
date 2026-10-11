@@ -1,6 +1,6 @@
 # DSH + GitHub Actions + Copilot
 
-这是私有测试仓库，已验证 DSH headless 在 Actions 中使用 Copilot gpt-5.4-mini 完成推理。
+这是 DSH 集成测试仓库，已验证 DSH headless 在 Actions 中使用 Copilot gpt-5.4-mini 完成推理。
 
 ## 原生下拉框选择 agent
 
@@ -19,11 +19,11 @@ GitHub 会自动建立 Draft PR 容器；无需合并，DSH 结果以 Issue 回�
 
 ## DSH Issue 自动化
 
-DSH 可用角色见 [agents/registry.json](agents/registry.json)，目前启用 connectivity 和 reviewer。
+DSH 可用角色见 [agents/registry.json](agents/registry.json)，目前启用 connectivity、reviewer、prototype、overview 和 detailed。
 新建 Issue 可选择“指派 DSH agent”模板，在 Agent 字段选择角色。
-已有 Issue 可添加 agent:reviewer 或 agent:connectivity 标签自动运行。
+已有 Issue 推荐通过原生 Assign to Agent 下拉框选择角色；旧标签路由保留兼容。
 状态、结果和运行链接回写 Issue；同一 Issue 串行，相同任务去重。
-Issue 自动化为禁工具的 analysis 模式，输出审查建议，不修改代码或创建 PR。
+Issue 自动化使用禁执行工具的 DSH；按角色交付审查建议、交互原型或概要/详细设计，由可信脚本校验并回写。
 原生 bot agent 的 assigned 事件会跳过 DSH 路由，避免同一次指派重复启动两套引擎。
 详见 [agents/README.md](agents/README.md) 和 [ISSUE-AUTOMATION-VERIFIED.md](ISSUE-AUTOMATION-VERIFIED.md)。
 
@@ -42,7 +42,7 @@ Copilot 网页的 DeepSeek BYOK 在当前个人仓库 Actions 身份下不可见
 
 智能体先判断是否需要界面，分析需求、用户流程、状态和验收条件；需要时生成可交互的单文件 HTML 原型，否则解释判断依据。默认采用极简舒适美学，居中紧凑布局，支持手机、平板和桌面，具体规范见 `agents/prototype-instructions.md`。可在 Issue 中提供品牌规范或参考。
 
-结果回写 Issue，并附 `prototype-deliverable` 交付包：`decision.json`、`requirements.md`、`design.md`、`README.md`，需要原型时另有 `index.html`。下载并解压后用浏览器打开 HTML；交付包保留 30 天，可自行下载留存。当前交付是交互原型和演示数据，未连接真实业务后端。
+结果回写 Issue，并附 `prototype-deliverable` 交付包：`decision.json`、`requirements.md`、`design.md`、`README.md`，需要原型时另有 `index.html`。在线预览通过 GitHub Pages 自动发布并回写 Issue；也可下载并解压后用浏览器打开 HTML。交付包保留 30 天，可自行下载留存。当前交付是交互原型和演示数据，未连接真实业务后端。
 
 DSH 引擎使用 registry 中的模型，当前为 GitHub Copilot API 的 `gpt-5.4-mini`；原生下拉框的调度模型不改变 DSH 实际模型。HTML 是模型输出的数据，校验后只写入固定 artifact 路径，不写回仓库代码，不在带凭据的 runner 中执行。
 
@@ -100,6 +100,21 @@ GitHub Pages 已启用，并兼容仓库所有者的自定义域名。23 项单�
 
 输入契约包括名称、准确类型/字段、来源、必填与校验；输出包括名称、准确类型/字段、消费者与成功保证。下游引用格式 `TASK-01.outputName`，必须存在并列出依赖，生产者输出与消费者输入类型必须一致；依赖禁止循环。
 
+详细设计还必须检查语义闭环：拟定方法的全部参数、状态推进信号及去重/幂等键，都要能从输入或上游输出字段取得；关键规则要给出明确暂定方案，不能把缺失字段留给开发补齐。分页累计/消息重放需说明事务与唯一约束，以及提交前后崩溃和并发重复的恢复测试。
+
 每个实际模式/关键技术或模型选择写明：解决的具体问题、为什么采用、替代方案、取舍代价、适用边界、接口/类/模块落点，并与具体任务双向关联。简单任务允许直接实现；不强行加入模式。
 
-交付回写 Issue，并提供 `design-deliverable`：`design.md`、`task-contracts.md`、`decisions.md`、`design.json`、`README.md`，保留 30 天。JSON 契约由可信脚本校验，失败不会冒充设计成功；正文和任务表来自同一份数据。开发代码、创建子 Issue/PR、合并和部署均不属于这两个角色的执行范围。设计正文是提案，其业务正确性仍需结合实际需求评审。
+交付回写 Issue，并提供 `design-deliverable`：`design.md`、`task-contracts.md`、`decisions.md`、`design.json`、`README.md`，保留 30 天。详细设计按实际职责拆为模块：跨职责、总设计及模块正文合计超过 20000 字符或达到 6 个任务时必须拆分，阈值只是兜底。每个任务恰好归属一个模块，跨模块依赖由任务契约生成。不能把一个混杂的大模块机械切成上下篇，也不为排版引入微服务。
+
+同轮交付 `modules/MOD-xx.md` 独立模块详细设计和 `overview-update.md` 修订后概要模块章节，包含拆分/合并原因、模块职责与边界、接口/依赖、数据所有权及里程碑调整。以已提供概要为基线；未提供时明确按本次需求拟定。该章节可用于替换原概要相应部分，当前工作流交付修订文档，不自动覆盖仓库文件。
+
+JSON 契约由可信脚本校验，失败不会冒充设计成功；正文和任务表来自同一份数据。首次契约不合格时，将具体错误反馈给 DSH，再生成并校验完整设计，最多修正一次；仍不合格则失败，保留两次输出及错误诊断。开发代码、创建子 Issue/PR、合并和部署均不属于这两个角色的执行范围。设计正文是提案，其业务正确性仍需结合实际需求评审。
+
+
+### 设计角色验收（2026-10-11）
+
+- 原生下拉框确认出现 Overview/Detailed 两个角色，分别指派 Issue #16/#17 后，Copilot 会话通过 MCP 返回 dispatch_accepted 并完成；不添加标签。
+- 概要设计 [Issue #16](https://github.com/gmij/dsh-actions-connectivity/issues/16) 的真实 [DSH run 38114770873](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38114770873) route/agent/publish 全部成功，交付架构、4 个里程碑任务、逐任务契约与模式依据。
+- 模块化详细设计 [Issue #17](https://github.com/gmij/dsh-actions-connectivity/issues/17#issuecomment-6105854744) 的真实 [DSH run 38115050536](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38115050536) route/agent/publish 全部成功。交付供应商适配、幂等持久化、批次汇总 3 个独立模块，修订后的概要模块章节、模块依赖与对应任务契约。现场核对生产者/消费者 DTO、pageId/hasMore 传递、事务内页去重与批次统计、崩溃重放及 Adapter 决策依据。
+- 38 项单元测试通过，含任务依赖、类型一致性、决策关联、模块唯一归属、过大设计必须拆分、概要修订必填、一次修正上限与固定文件路径。首次试验中的无效契约均被校验器拒绝；修复提示结构、错误反馈及文档长度预算后重新完成真实验收。
+- 本次模块化运行期间修复了 Issue 中模块相对链接的格式，并用同一已校验 JSON 补全该条 Issue 回写；未来运行会自动包含模块正文。交付包内部模块相对链接保持有效。
