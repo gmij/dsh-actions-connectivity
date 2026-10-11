@@ -144,6 +144,11 @@ def build_prompt(issue, chosen):
     return prompt
 
 
+def force_input_enabled(value):
+    """Accept workflow_dispatch JSON boolean and legacy string representations."""
+    return value is True or (isinstance(value, str) and value.strip().lower() == "true")
+
+
 def route():
     OUT.mkdir(parents=True, exist_ok=True)
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
@@ -178,8 +183,7 @@ def route():
     key = fingerprint(issue, chosen, config, patch)
     marker = f"<!-- dsh-agent:{key} -->"
     # workflow_dispatch boolean inputs may be JSON booleans (true/false), not only strings.
-    raw_force = event.get("inputs", {}).get("force", False)
-    force = manual and (raw_force is True or isinstance(raw_force, str) and raw_force.lower() == "true")
+    force = manual and force_input_enabled(event.get("inputs", {}).get("force", False))
     previous = next((c for c in comments(repo, number) if marker in c["body"] and c["user"]["login"] == "github-actions[bot]"), None)
     if previous and not force:
         output(run="false")
