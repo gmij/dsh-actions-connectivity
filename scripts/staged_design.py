@@ -92,19 +92,44 @@ def generate_staged(original, level, out_dir, invoke):
             except json.JSONDecodeError as exc:
                 prefix = response.lstrip()[:80].replace("\\n", " ")
                 raise ValueError(f"Design stage {name} returned non-JSON/incomplete text ({len(response)} chars; leading={prefix!r}): {exc}") from exc
-        if name != "core" and isinstance(fragment, dict):
-            # Models sometimes repeat the common wire envelope in later stages.
-            # It is safe to ignore ONLY values matching the authoritative core.
-            for envelope in ("schema_version", "level"):
-                if envelope in fragment:
-                    if fragment[envelope] != assembled.get(envelope):
-                        raise ValueError(f"Design stage {name} conflicting {envelope}")
-                    fragment.pop(envelope)
         required = set(fields)
         if name == "core" and level == "detailed":
             required.add("overview_update_markdown")
+
+        def normalize_fields(value):
+            if name != "core" and isinstance(value, dict):
+                value = dict(value)
+                for envelope in ("schema_version", "level"):
+                    if envelope in value:
+                        if value[envelope] != assembled.get(envelope):
+                            raise ValueError(f"Design stage {name} conflicting {envelope}")
+                        value.pop(envelope)
+            return value
+
+        fragment = normalize_fields(fragment)
         if not isinstance(fragment, dict) or set(fragment) != required:
-            raise ValueError(f"Design stage {name} fields mismatch: expected {sorted(required)}, got {sorted(fragment) if isinstance(fragment, dict) else type(fragment).__name__}")
+            got = set(fragment) if isinstance(fragment, dict) else set()
+            if checkpoint.exists():
+                raise ValueError(f"Design stage {name} checkpoint fields mismatch: expected {sorted(required)}, got {sorted(got)}")
+            # Retry only this stage once, with exact field corrections. Keep DSH
+            # event logs separate using a distinct invocation stage name.
+            correction = (
+                stage_prompt(original, name, fields, assembled, level)
+                + "\\n上次阶段输出未通过契约校验。缺失字段："
+                + json.dumps(sorted(required - got), ensure_ascii=False)
+                + "；多余字段：" + json.dumps(sorted(got - required), ensure_ascii=False)
+                + "。请重新生成此阶段的完整 JSON，必须且只能包含指定字段。"
+                + "\\n上次的内容（供纠错参考）：\\n"
+                + json.dumps(fragment, ensure_ascii=False)[:35000]
+            )
+            corrected = invoke(correction, name + "-schema-retry")
+            try:
+                fragment = normalize_fields(parse_stage_json(corrected))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Design stage {name} schema retry returned invalid JSON: {exc}") from exc
+            if not isinstance(fragment, dict) or set(fragment) != required:
+                got = sorted(fragment) if isinstance(fragment, dict) else type(fragment).__name__
+                raise ValueError(f"Design stage {name} schema retry fields mismatch: expected {sorted(required)}, got {got}")
         if name == "core" and (fragment.get("level") != level or fragment.get("schema_version") != 2):
             raise ValueError("Invalid design schema/version or level in core stage")
         assembled.update(fragment)
