@@ -40,7 +40,7 @@ class StagedDesignTests(unittest.TestCase):
             def model(prompt, stage):
                 calls.append(stage)
                 return '{'  # simulate max-token truncation
-            with self.assertRaisesRegex(ValueError, 'core.*invalid/truncated'):
+            with self.assertRaisesRegex(ValueError, 'core.*non-JSON/incomplete'):
                 generate_staged('prompt', 'overview', directory, model)
             self.assertEqual(calls, ['core'])
 
