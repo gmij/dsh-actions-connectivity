@@ -19,7 +19,7 @@ on:
         default: false
         type: boolean
   push:
-    paths: ['agents/**', '.github/agents/**', '.github/workflows/issue-agent.yml', 'scripts/issue_agent.py', 'scripts/design_output.py', 'scripts/test_*.py', 'scripts/dsh_dispatch_mcp.py']
+    paths: ['agents/**', '.github/agents/**', '.github/workflows/issue-agent.yml', 'scripts/issue_agent.py', 'scripts/design_output.py', 'scripts/design_delivery.py', 'scripts/capture_prototype.mjs', 'scripts/test_*.py', 'scripts/dsh_dispatch_mcp.py']
 permissions:
   contents: read
 concurrency:
@@ -75,6 +75,8 @@ jobs:
           path: ${{ runner.temp }}/issue-agent/
           retention-days: 7
   agent:
+    outputs:
+      preview: ${{ steps.worker.outputs.preview }}
     needs: route
     if: needs.route.outputs.run == 'true'
     runs-on: ubuntu-24.04
@@ -95,6 +97,7 @@ jobs:
           path: ${{ runner.temp }}/issue-agent/
       - run: npm install --prefix "$RUNNER_TEMP/dsh" --no-audit --no-fund @deepseek-ai/dsh@0.2.1-alpha.2
       - name: Run registered DSH agent
+        id: worker
         run: python scripts/issue_agent.py run
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -117,7 +120,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - uses: actions/upload-artifact@v4
-        if: success() && needs.route.outputs.agent == 'prototype'
+        if: success() && steps.worker.outputs.preview == 'true'
         with:
           name: prototype-deliverable
           path: ${{ runner.temp }}/issue-agent/prototype/
@@ -129,6 +132,39 @@ jobs:
           name: design-deliverable
           path: ${{ runner.temp }}/issue-agent/design/
           if-no-files-found: error
+          retention-days: 30
+  capture:
+    needs: agent
+    if: needs.agent.outputs.preview == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: prototype-deliverable
+          path: ${{ runner.temp }}/capture-input
+      - name: Install isolated screenshot renderer
+        run: |
+          npm install --prefix "$RUNNER_TEMP/render" --no-audit --no-fund playwright
+          "$RUNNER_TEMP/render/node_modules/.bin/playwright" install chromium --with-deps
+      - name: Capture desktop and mobile prototype screenshots
+        run: node scripts/capture_prototype.mjs
+        env:
+          RENDER_PACKAGE_PATH: ${{ runner.temp }}/render
+          PROTOTYPE_DIR: ${{ runner.temp }}/capture-input
+          SCREENSHOT_DIR: ${{ runner.temp }}/screenshots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prototype-screenshots
+          path: ${{ runner.temp }}/screenshots/
           retention-days: 30
   publish:
     needs: [route, agent]
