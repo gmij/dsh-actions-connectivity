@@ -12,7 +12,9 @@ STAGES = (
     ("core", CORE),
     ("tasks", ("task_records",)),
     ("pages", ("page_records",)),
-    ("delivery", ("delivery",)),
+    ("apis", ("apis",)),
+    ("bindings", ("bindings",)),
+    ("prototype", ("prototype_html",)),
 )
 
 
@@ -35,9 +37,14 @@ def stage_prompt(original, name, keys, completed, level):
                  "里程碑归属及测试，ID 与 core.milestones.task_ids 完全一致。",
         "pages": "仅输出 page_records 数组。仅针对 core 模块中的 frontend_applicable=true 模块，"
                  "操作及绑定引用 delivery 阶段将生成的 API-ID；不是网页产品时允许空数组。",
-        "delivery": "仅输出 delivery 对象，包含 apis、bindings、prototype_html。"
-                    "严格对齐已确定页面、任务、模块及实际 API-ID。"
-                    "需要界面时原型必须能本地运行，不能用静态截图代替交互。"
+        "apis": "仅输出 apis 数组，每一项都包含完整 HTTP 请求/响应 Schema 和示例。"
+                "仅设计实际存在的 HTTP API，不把 VS Code IPC/ACP 伪装成 HTTP。"
+                "不适用 HTTP API 时输出空数组。单次最多 3 个 API，控制输出体积。",
+        "bindings": "仅输出 bindings 数组，引用已生成 apis 和 page_records。"
+                    "没有适用 HTTP API 时输出空数组，页面内部交互在模块接口契约描述。",
+        "prototype": "仅输出 prototype_html 字符串，必要时生成可本地运行的离线交互 HTML。"
+                     "不要把 HTML 和 API Schema 放在一个 JSON 回复里。"
+                     "使用 JSON 的正常转义；无需原型时返回空字符串。"
     }
     # Limit previous context; the stage is explicitly designed as a small MVP.
     previous = json.dumps(completed, ensure_ascii=False)
@@ -75,4 +82,5 @@ def generate_staged(original, level, out_dir, invoke):
         assembled.update(fragment)
         if not checkpoint.exists():
             checkpoint.write_text(json.dumps(fragment, ensure_ascii=False, indent=2))
+    assembled["delivery"] = {key: assembled.pop(key) for key in ("apis", "bindings", "prototype_html")}
     return json.dumps(assembled, ensure_ascii=False)
