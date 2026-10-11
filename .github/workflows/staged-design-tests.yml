@@ -6,6 +6,9 @@ on:
   pull_request:
     paths:
       - 'scripts/staged_design.py'
+      - 'scripts/design_delivery.py'
+      - 'scripts/design_wiki.py'
+      - 'scripts/test_typed_ipc_contract.py'
       - 'scripts/staged_prototype.py'
       - 'scripts/issue_agent.py'
       - 'tests/test_staged_design.py'
@@ -23,5 +26,7 @@ jobs:
           python-version: '3.12'
       - name: Verify staged design unit tests
         run: PYTHONPATH=scripts python -m unittest discover -s tests -p 'test_staged_*.py' -v
+      - name: Run complete design/Wiki contract regressions
+        run: PYTHONPATH=scripts python -m unittest discover -s scripts -p 'test_*.py' -v
       - name: Verify Python syntax
-        run: python -m py_compile scripts/staged_design.py scripts/staged_prototype.py scripts/issue_agent.py
+        run: python -m py_compile scripts/staged_design.py scripts/staged_prototype.py scripts/issue_agent.py scripts/design_delivery.py scripts/design_wiki.py
