@@ -69,9 +69,11 @@ def assemble(existing, state, repo, issue, run_id, role, raw):
     with tempfile.TemporaryDirectory() as folder:
         bundle = Path(folder) / 'bundle'
         write_bundle(raw, bundle, role)
+        current = json.loads((bundle / 'design.json').read_text()).get('schema_version') == 2
         docs = {str(p.relative_to(bundle)): p.read_text() for p in bundle.rglob('*.md') if p.name != 'README.md'}
     prefix = base(issue, role)
     names = {'design.md': '', 'task-contracts.md': '-Tasks', 'decisions.md': '-Decisions', 'overview-update.md': '-Overview-Update'}
+    names.update({'milestones.md': '-Milestones', 'ui.md': '-UI', 'documentation.md': '-Documentation'})
     names.update({name: '-' + Path(name).stem for name in docs if name.startswith('modules/')})
     result = dict(existing)
     key = f'{issue}-{role}'
@@ -85,7 +87,7 @@ def assemble(existing, state, repo, issue, run_id, role, raw):
             nav = f'[文档目录]({wiki_link(repo, "DSH-Documents")}) · [本设计]({wiki_link(repo, variant)}) · [版本记录]({wiki_link(repo, prefix + "-History")})'
             provenance = f'来源：[Issue #{issue}](https://github.com/{repo}/issues/{issue}) · [DSH run {run_id}](https://github.com/{repo}/actions/runs/{run_id})'
             rendered = MARKER + '\n\n' + nav + '\n\n' + provenance + '\n\n' + rewrite(text, variant, names)
-            if name == 'design.md':
+            if name == 'design.md' and not current:
                 rendered += '\n\n## 阅读导航\n\n' + '\n'.join(f'- [{label(Path(n).stem)}]({wiki_link(repo, variant + names[n])})' for n in docs if n != 'design.md') + '\n'
             if '-Run-' in variant and filename in existing and existing[filename] != rendered:
                 raise ValueError('Immutable wiki version differs from existing content')
@@ -98,11 +100,16 @@ def assemble(existing, state, repo, issue, run_id, role, raw):
         title = '概要设计' if entry['role'] == 'overview' else '详细设计'
         directory += f"| #{entry['issue']} | [{title}]({wiki_link(repo, p)}) | {entry['latest']} | [历史]({wiki_link(repo, p + '-History')}) |\n"
         sidebar += f"\n- [#{entry['issue']} {title}]({p})\n  - [任务输入输出]({p}-Tasks)\n  - [设计决策]({p}-Decisions)\n"
+        for suffix, heading in [('Milestones', 'MVP 里程碑与发布'), ('UI', '界面与交互'), ('Documentation', '文档交付')]:
+            if p + '-' + suffix + '.md' in result:
+                sidebar += f'  - [{heading}]({p}-{suffix})\n'
         if entry['role'] == 'detailed':
             sidebar += f'  - [概要同步修订]({p}-Overview-Update)\n'
-            module_pages = sorted(set(re.findall(re.escape(p) + r'-MOD-\d{2,3}(?!\d)', result.get(p + '.md', ''))))
-            for page in module_pages:
-                sidebar += f'  - [{page.split("-MOD-")[1]} 模块]({page})\n'
+        module_pages = sorted(set(re.findall(re.escape(p) + r'-MOD-\d{2,3}(?!\d)', result.get(p + '.md', ''))))
+        for page in module_pages:
+            heading = re.search(r'^# (MOD-\d{2,3} · .+)$', result.get(page + '.md', ''), re.M)
+            module_title = heading[1] if heading else page.split('-MOD-')[1] + ' 模块'
+            sidebar += f'  - [{label(module_title)}]({page})\n'
         history = MARKER + f'\n\n# Issue #{entry["issue"]} · {title}版本\n\n'
         history += '\n'.join(f'- [DSH run {version}]({wiki_link(repo, p + "-Run-" + str(version))})' for version in entry['versions']) + '\n'
         history_name = p + '-History.md'
