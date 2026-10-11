@@ -1,0 +1,165 @@
+"""Validate design contracts and produce fixed Markdown/JSON deliverables."""
+import json
+import re
+
+IO = {'name', 'type', 'source', 'required', 'validation'}
+OUTPUT = {'name', 'type', 'destination', 'guarantee'}
+TASK = {'id', 'title', 'goal', 'depends_on', 'inputs', 'outputs', 'steps', 'failure_handling', 'acceptance', 'tests', 'patterns'}
+DECISION = {'id', 'pattern', 'problem', 'rationale', 'alternatives', 'tradeoffs', 'implementation', 'tasks'}
+
+
+def text(value):
+    if not isinstance(value, str) or not value.strip() or len(value) > 15000:
+        raise ValueError('Required design text is missing or too long')
+    return value
+
+
+def strings(values, required=True):
+    if not isinstance(values, list) or len(values) > 50 or (required and not values):
+        raise ValueError('Expected design list')
+    for value in values:
+        text(value)
+
+
+def validate(data, level):
+    if not isinstance(data, dict) or set(data) != {'level', 'summary_markdown', 'design_markdown', 'decisions', 'tasks'} or data['level'] != level or level not in {'overview', 'detailed'}:
+        raise ValueError('Invalid design output contract')
+    text(data['summary_markdown']); text(data['design_markdown'])
+    tasks = data['tasks']
+    if not isinstance(tasks, list) or not 1 <= len(tasks) <= 30:
+        raise ValueError('Expected 1 to 30 bounded tasks')
+    indexed = {}
+    for task in tasks:
+        if not isinstance(task, dict) or set(task) != TASK or not re.fullmatch(r'TASK-\d{2,3}', task['id']):
+            raise ValueError('Invalid task contract')
+        if task['id'] in indexed:
+            raise ValueError('Duplicate task ID')
+        indexed[task['id']] = task
+        for key in ['title', 'goal']:
+            text(task[key])
+        for key in ['depends_on', 'patterns']:
+            strings(task[key], required=False)
+        for key in ['steps', 'acceptance', 'tests']:
+            strings(task[key])
+        for key, fields in [('inputs', IO), ('outputs', OUTPUT)]:
+            values = task[key]
+            if not isinstance(values, list) or not 1 <= len(values) <= 20:
+                raise ValueError('Every task needs explicit inputs and outputs')
+            names = set()
+            for value in values:
+                if not isinstance(value, dict) or set(value) != fields:
+                    raise ValueError('Invalid input/output fields')
+                for field in fields - {'required'}:
+                    text(value[field])
+                if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*', value['name']) or value['name'] in names:
+                    raise ValueError('Input/output names must be unique contract identifiers')
+                names.add(value['name'])
+                if key == 'inputs' and type(value['required']) is not bool:
+                    raise ValueError('Input required must be boolean')
+        failures = task['failure_handling']
+        if not isinstance(failures, list) or not failures:
+            raise ValueError('Task failure/retry/idempotency contract is required')
+        for failure in failures:
+            if not isinstance(failure, dict) or set(failure) != {'scenario', 'behavior', 'retry', 'idempotency'}:
+                raise ValueError('Invalid failure contract')
+            for value in failure.values():
+                text(value)
+    for task in tasks:
+        if len(set(task['depends_on'])) != len(task['depends_on']) or any(dep not in indexed or dep == task['id'] for dep in task['depends_on']):
+            raise ValueError('Invalid task dependency')
+        for value in task['inputs']:
+            source = value['source']
+            if source.startswith('TASK-'):
+                match = re.fullmatch(r'(TASK-\d{2,3})\.([A-Za-z][A-Za-z0-9_]*)', source)
+                if not match or match[1] not in task['depends_on']:
+                    raise ValueError('Producer input must reference an explicit dependency and output')
+                producer = next((o for o in indexed[match[1]]['outputs'] if o['name'] == match[2]), None)
+                if producer is None or producer['type'] != value['type']:
+                    raise ValueError('Producer/consumer output name or type mismatch')
+    visited, active = set(), set()
+    def visit(identifier):
+        if identifier in active:
+            raise ValueError('Cyclic task dependency')
+        if identifier in visited:
+            return
+        active.add(identifier)
+        for dep in indexed[identifier]['depends_on']:
+            visit(dep)
+        active.remove(identifier); visited.add(identifier)
+    for identifier in indexed:
+        visit(identifier)
+    decisions = data['decisions']
+    if not isinstance(decisions, list) or len(decisions) > 30:
+        raise ValueError('Invalid decisions')
+    decision_ids = set()
+    for decision in decisions:
+        if not isinstance(decision, dict) or set(decision) != DECISION:
+            raise ValueError('Invalid design-pattern decision')
+        for key in DECISION - {'tasks'}:
+            text(decision[key])
+        if decision['id'] in decision_ids:
+            raise ValueError('Duplicate decision ID')
+        decision_ids.add(decision['id'])
+        strings(decision['tasks'])
+        if any(identifier not in indexed for identifier in decision['tasks']):
+            raise ValueError('Decision references unknown task')
+        if any(decision['id'] not in indexed[identifier]['patterns'] for identifier in decision['tasks']):
+            raise ValueError('Pattern decision and task mapping must agree')
+    for task in tasks:
+        if any(identifier not in decision_ids for identifier in task['patterns']):
+            raise ValueError('Task references unknown pattern decision')
+        if any(task['id'] not in next(d for d in decisions if d['id'] == identifier)['tasks'] for identifier in task['patterns']):
+            raise ValueError('Pattern decision must name all using tasks')
+    return data
+
+
+def cell(value):
+    return str(value).replace('|', '\\|').replace('\n', '<br>')
+
+
+def render(data):
+    parts = ['# 任务输入输出与执行契约\n']
+    for task in data['tasks']:
+        parts += [f"## {task['id']} · {task['title']}\n", task['goal'] + '\n', '依赖：' + ('、'.join(task['depends_on']) or '无') + '\n',
+                  '### 输入\n\n| 名称 | 类型 | 来源 | 必填 | 校验 |\n|---|---|---|---|---|']
+        for value in task['inputs']:
+            parts.append('| ' + ' | '.join(cell(value[k]) for k in ['name', 'type', 'source', 'required', 'validation']) + ' |')
+        parts += ['\n### 输出\n\n| 名称 | 类型 | 去向 | 成功保证 |\n|---|---|---|---|']
+        for value in task['outputs']:
+            parts.append('| ' + ' | '.join(cell(value[k]) for k in ['name', 'type', 'destination', 'guarantee']) + ' |')
+        for key, title in [('steps', '处理步骤'), ('acceptance', '验收条件'), ('tests', '测试场景')]:
+            parts += [f'\n### {title}\n'] + [f'{i}. {value}' for i, value in enumerate(task[key], 1)]
+        parts += ['\n### 异常、重试与幂等\n']
+        for failure in task['failure_handling']:
+            parts.append(f"- 场景：{failure['scenario']}；行为：{failure['behavior']}；重试：{failure['retry']}；幂等：{failure['idempotency']}")
+        parts.append('\n设计决策：' + ('、'.join(task['patterns']) or '直接实现，无额外设计模式') + '\n')
+    decisions = ['# 设计决策与模式选择\n']
+    for decision in data['decisions']:
+        decisions += [f"## {decision['id']} · {decision['pattern']}\n"]
+        for key, title in [('problem', '解决的问题'), ('rationale', '为什么采用'), ('alternatives', '替代方案及取舍'), ('tradeoffs', '代价与适用边界'), ('implementation', '具体落点')]:
+            decisions += [f'### {title}\n', decision[key] + '\n']
+        decisions += ['关联任务：' + '、'.join(decision['tasks']) + '\n']
+    if not data['decisions']:
+        decisions.append('本方案采用直接实现；不为了模式而增加抽象。适用理由见设计正文。')
+    return '\n'.join(parts), '\n'.join(decisions)
+
+
+def write_bundle(raw, destination, level):
+    if len(raw) > 350000:
+        raise ValueError('Design output too large')
+    raw = raw.strip()
+    if raw.startswith('```'):
+        match = re.fullmatch(r'```(?:json)?\s*\n(.*?)\n```', raw, re.S)
+        if not match:
+            raise ValueError('Expected one design JSON object')
+        raw = match[1]
+    data = validate(json.loads(raw), level)
+    contracts, decisions = render(data)
+    destination.mkdir(parents=True, exist_ok=True)
+    title = '概要设计' if level == 'overview' else '详细设计'
+    (destination / 'design.md').write_text(f'# {title}\n\n{data["summary_markdown"]}\n\n{data["design_markdown"]}', encoding='utf-8')
+    (destination / 'task-contracts.md').write_text(contracts, encoding='utf-8')
+    (destination / 'decisions.md').write_text(decisions, encoding='utf-8')
+    (destination / 'design.json').write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    (destination / 'README.md').write_text('设计提案，尚未执行代码开发。design.md 为正文，task-contracts.md 为逐任务输入输出及验收，decisions.md 为选择理由，design.json 为可校验契约。\n', encoding='utf-8')
+    return f'# {title}\n\n{data["summary_markdown"]}\n\n{data["design_markdown"]}\n\n{decisions}\n\n{contracts}'
