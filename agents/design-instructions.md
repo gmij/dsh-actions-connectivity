@@ -42,3 +42,5 @@ inputs/outputs 中 name 是英文字母开头的标识符，可包含数字和�
 {"id":"DEC-01","pattern":"模式或关键技术/模型名称","problem":"解决的具体问题","rationale":"为什么使用","alternatives":"替代方案与取舍","tradeoffs":"代价与边界","implementation":"具体接口/类/模块/调用落点","tasks":["TASK-01"]}
 
 decision.tasks 与 task.patterns 必须双向对应。所有文字字段不能为空。可信脚本校验生产者/消费者类型、依赖与模式映射并写入固定 Markdown/JSON 文件；你不需要调用文件或发布工具。
+
+最终自检：source 以 TASK- 开头时，整个字符串只能是 TASK-编号.输出名，不能添加“与”“或”、说明或字段访问；复杂描述写在 validation。下游若只处理 PageDto 中的单个 ItemDto，inputs 仍接收整个 PageDto，在 steps 中遍历 items，不要把 PageDto 的同一输出冒充 ItemDto。
