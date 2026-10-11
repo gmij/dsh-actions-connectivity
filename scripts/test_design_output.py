@@ -48,6 +48,15 @@ class DesignTests(unittest.TestCase):
             self.assertIn('SyncApiContract', invoke.call_args.args[1])
             self.assertTrue((Path(folder) / 'contract-error.txt').is_file())
 
+    def test_json_syntax_repair_receives_position_and_complete_schema(self):
+        from test_mvp_design import example2
+        with tempfile.TemporaryDirectory() as folder, patch.object(issue_agent, 'OUT', Path(folder)), patch.object(issue_agent, 'invoke_dsh', return_value=json.dumps(example2())) as invoke:
+            answer = issue_agent.design_with_repair('{"modules":[}', ['dsh'], 'requirements', 'detailed')
+            self.assertIn('MS-01', answer)
+            self.assertIn('错误位置附近', invoke.call_args.args[1])
+            self.assertIn('重建并正确序列化', invoke.call_args.args[1])
+            invoke.assert_called_once()
+
     def test_failed_repair_is_bounded_and_never_delivers_invalid_contract(self):
         from test_mvp_design import example2
         invalid = example2()
