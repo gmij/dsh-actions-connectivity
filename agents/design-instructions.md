@@ -48,39 +48,23 @@ detailed 同轮提供 overview_update_markdown：完整修订后的概要模块�
 
 每项实际采用的模式/关键技术形成 decision，关联具体任务，说明解决什么问题、为什么适合、一个更简单替代方案及取舍、复杂度/维护代价与适用边界、落到哪些接口/类。不用的模式不要硬加，patterns 可以为空。仅业务需要推理时设计 AI 模型选择，说明输入输出、质量/成本/延迟与备用策略；不编造最新价格或能力。
 
-## 严格 V2 JSON 输出契约
+## V2 JSON 输出：先模块、再任务记录
 
-只输出一个 JSON 对象，不加围栏。按 experience → milestones → modules（模块设计后 tasks）→ decisions → summary/design 顺序组织思考与自检。输出顺序不改变必须字段。**不得输出旧版顶层 tasks 或 module.task_ids。**
+只输出一个合法 JSON，不附围栏，按下方完整示例的结构填写业务。为降低复杂嵌套的错误，传输格式采用模块数组、独立页面记录和独立任务记录；每条记录必须给准确 module_id，不能让交付器猜归属。可信交付器会将记录归入指定模块，最终 design.json 只保存 modules[].tasks 和 modules[].frontend.pages；文档继续模块优先，任务记录不是全局任务文档，也不能先列任务再倒推模块。
 
-顶层必须且仅包含：
-{"schema_version":2,"level":"overview 或 detailed","summary_markdown":"目标/范围/基线/假设/待确认","design_markdown":"跨模块总体架构与共享约束","experience":{"interaction_mode":"web 或 api 或 cli","rationale":"用户入口与选择理由"},"milestones":[],"modules":[],"decisions":[]}
-仅 detailed 再加 overview_update_markdown（非空字符串）。
+顶层必须且仅包含 schema_version=2、level、summary_markdown、design_markdown、experience、milestones、modules、page_records、task_records、decisions。仅 detailed 再加 overview_update_markdown；overview 禁止此额外字段。
 
-每个 milestone 必须且仅包含：
-{"id":"MS-01","title":"第一个可用增量","user_value":"可体验的价值","user_journey":["用户入口→动作→可见结果"],"depends_on":[],"task_ids":["TASK-01"],"integration_tests":[{"scenario":"闭环/异常场景","preconditions":["环境及数据"],"steps":["可复现操作"],"expected":["明确预期"]}],"release_criteria":["所有任务完成及端到端门槛"],"release_plan":"具体前后端部署/迁移/配置/操作说明","rollback_plan":"回滚操作与数据边界"}
-里程碑 ID MS-两到三位数字；depends_on 仅前置 MS ID，无循环。每项任务恰好在一个 milestone.task_ids 出现，且 task.milestone_id 一致。Web 每里程碑四类任务齐全，API/CLI 至少 backend/integration/documentation。禁止任务依赖未来或无关里程碑。
+modules 每项严格使用示例的平铺字段：id/title/responsibility/boundary/design_markdown/interfaces_markdown/frontend_applicable/frontend_reason/frontend_markdown/backend_applicable/backend_reason/backend_markdown/documentation_deliverables/documentation_acceptance。适用字段必须是 JSON 布尔值，不是字符串。所有正文非空，文档清单及验收非空。前端模块必须 frontend_applicable=true 并定义 page_records；仅后端模块设 false 并说明界面由谁承担。
 
-每个 module 必须且仅包含：
-{"id":"MOD-01","title":"模块名","responsibility":"职责","boundary":"不负责什么、数据边界","design_markdown":"模块完整内部设计","interfaces_markdown":"前后端/跨模块契约、具体API与示例、数据所有权","frontend":{"applicable":true,"reason":"职责归属理由","design_markdown":"组件、状态与交互设计","pages":[]},"backend":{"applicable":true,"reason":"职责归属理由","design_markdown":"API、存储、事务及异常设计"},"documentation":{"deliverables":["文档路径及内容"],"acceptance":["文档可验证门槛"]},"tasks":[]}
-module ID MOD-两到三位数字，tasks 非空，最多20模块。frontend applicable=true 时 pages 非空；false 时 pages=[]，reason/design_markdown 仍非空，说明不适用及由谁承担。backend 同样明确适用性及理由。
+page_records 每项字段：module_id/id/title/route/layout_markdown/user_actions/states/api_bindings/acceptance/prototype_reference。UI ID 全局唯一 UI-两到三位数字；states 必含 loading/empty/error/success 原样英文值。布局、行为、状态、API及验收具体，不能占位。
 
-每个 page 必须且仅包含：
-{"id":"UI-01","title":"页面名","route":"/页面路径","layout_markdown":"布局/组件细节","user_actions":["操作与反馈"],"states":["loading","empty","error","success"],"api_bindings":["HTTP路径与DTO/任务映射"],"acceptance":["界面验收"],"prototype_reference":"已提供的原型来源或明确尚未生成"}
-UI ID 全局唯一，states 至少有以上四个原样英文值；状态实际行为写在前端正文。界面 API 要对应真实拟定的后端契约。
+task_records 每项字段：module_id/id/title/goal/layer/milestone_id/depends_on/inputs/outputs/steps/failure_handling/acceptance/tests/patterns。layer 只能是 frontend/backend/integration/documentation。frontend 任务 module_id 指向有页面设计的前端模块；backend 指向有后端设计的模块。各任务只有一个模块及里程碑。ID为TASK-两到三位数字。inputs/outputs/steps/failure_handling/acceptance/tests 均非空；IO 的字段严格按例子，name为英文标识符、required为布尔值、type准确。TASK来源必须准确匹配生产者的输出名及类型，depends_on仅TASK ID。
 
-每个 task 必须且仅包含：
-{"id":"TASK-01","title":"任务名","goal":"目标与边界","layer":"frontend 或 backend 或 integration 或 documentation","milestone_id":"MS-01","depends_on":[],"inputs":[{"name":"request","type":"准确类型","source":"外部来源或 TASK-01.outputName","required":true,"validation":"字段/前置条件/校验"}],"outputs":[{"name":"result","type":"准确类型","destination":"消费者","guarantee":"结果保证"}],"steps":["具体实现或验证步骤"],"failure_handling":[{"scenario":"异常","behavior":"行为","retry":"固定重试上限/不重试理由","idempotency":"依据"}],"acceptance":["可验证条件"],"tests":["测试层次：Given/When/Then"],"patterns":[]}
-TASK ID 全局唯一两到三位数字；IO name 是英文字母开头的标识符。inputs/outputs/steps/failure_handling/acceptance/tests 均非空；depends_on/patterns 可空。前端任务所在模块必须有适用页面设计，后端任务模块必须有适用后端设计。文档任务也有明确输入制品、输出文档及内容验收。
+milestones 字段严格按例子：id/title/user_value/user_journey/depends_on/task_ids/integration_tests/release_criteria/release_plan/rollback_plan。ID MS-两到三位数字。每个任务恰好属于一个里程碑且milestone_id一致；Web里程碑必须四类任务齐全。集成测试至少正常与一个异常场景，字段scenario/preconditions/steps/expected；每项预期具体。无循环、不能依赖未来里程碑。
 
-每个 decision 必须且仅包含：
-{"id":"DEC-01","pattern":"模式/技术名","problem":"具体问题","rationale":"为什么用","alternatives":"替代方案和取舍","tradeoffs":"代价及边界","implementation":"类/接口/模块落点","tasks":["TASK-01"]}
-decision.tasks 与 task.patterns 双向一致。
+decisions 严格使用 id/pattern/problem/rationale/alternatives/tradeoffs/implementation/tasks，patterns只引用实际decision.id，如DEC-01，双向一致。没有必要的模式就直接实现。
 
-自检：用户操作闭环→里程碑集成场景→模块前后端契约→模块内任务，全部能相互追踪；页面操作有API；数据与状态字段闭环；里程碑有发布/回滚；概要与模块结构一致。文字预算：总体正文100000字符，模块/前后端/接口正文各30000，其他字段15000，整体JSON350000。优先简洁具体，避免复制重复和无限扩展。
-
-## 完整合法结构示例（不是本次需求，禁止照抄业务内容）
-
-下面是一个已通过 V2 校验的完整 JSON。请遵循其对象/数组层次并重新填写当前业务，尤其 modules 是数组，每个 module 的 tasks 数组结束后要闭合该 module，全部 module 结束后闭合 modules 数组，再输出顶层 decisions。overview 删除 overview_update_markdown 并改 level。patterns 只能填实际 decisions 的 id，如 DEC-01；不能填未定义的模式名。Markdown 换行在 JSON 字符串中用一次转义的 \n，不要输出字面双重转义的反斜杠n。
+下面是完整合法传输结构示例，不是本次需求，不要照抄业务内容。请在相同结构内填当前需求。overview改level并删除overview_update_markdown，其他字段保留。Markdown换行使用JSON的一次转义换行，不要双重转义。总体正文最多100000字符，模块/前后端/接口正文各30000，其他字段15000，整体JSON350000，任务最多30、模块最多20、里程碑最多10。
 
 {
   "schema_version": 2,
@@ -128,269 +112,6 @@ decision.tasks 与 task.patterns 双向一致。
       "rollback_plan": "回滚前后端版本，保留兼容数据"
     }
   ],
-  "modules": [
-    {
-      "id": "MOD-01",
-      "title": "同步服务",
-      "responsibility": "同步服务",
-      "boundary": "只负责本模块契约，其他职责由相邻模块承担",
-      "design_markdown": "先描述模块整体，再定义任务。",
-      "interfaces_markdown": "POST /api/sync 返回 batchId；GET /api/batches/{batchId} 返回状态与计数。",
-      "frontend": {
-        "applicable": false,
-        "reason": "页面由 MOD-02 承担",
-        "design_markdown": "状态与操作一致，加载时按钮禁用",
-        "pages": []
-      },
-      "backend": {
-        "applicable": true,
-        "reason": "API由 MOD-01 承担",
-        "design_markdown": "复合唯一键与事务落库，结构化错误响应"
-      },
-      "documentation": {
-        "deliverables": [
-          "docs/sync.md 使用与配置指南"
-        ],
-        "acceptance": [
-          "按文档可复现同步闭环"
-        ]
-      },
-      "tasks": [
-        {
-          "id": "TASK-01",
-          "title": "导入供应商元数据",
-          "goal": "只负责验证与归一化输入",
-          "depends_on": [],
-          "inputs": [
-            {
-              "name": "payload",
-              "type": "SupplierPayload",
-              "source": "供应商 HTTP 返回",
-              "required": true,
-              "validation": "外部 ID 必填，页码是正整数"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "api",
-              "type": "SyncApiContract",
-              "destination": "同步页面与集成测试",
-              "guarantee": "同步接口和状态查询契约完整"
-            }
-          ],
-          "steps": [
-            "验证协议后映射到 BookBatch"
-          ],
-          "failure_handling": [
-            {
-              "scenario": "非法外部 ID",
-              "behavior": "拒绝记录并返回字段错误",
-              "retry": "不重试校验失败",
-              "idempotency": "相同输入获得相同映射结果"
-            }
-          ],
-          "acceptance": [
-            "合法记录映射成功，非法 ID 被拒绝"
-          ],
-          "tests": [
-            "单元：空 ID → 字段错误"
-          ],
-          "patterns": [
-            "DEC-01"
-          ],
-          "layer": "backend",
-          "milestone_id": "MS-01"
-        }
-      ]
-    },
-    {
-      "id": "MOD-02",
-      "title": "操作体验与交付",
-      "responsibility": "操作体验与交付",
-      "boundary": "只负责本模块契约，其他职责由相邻模块承担",
-      "design_markdown": "先描述模块整体，再定义任务。",
-      "interfaces_markdown": "POST /api/sync 返回 batchId；GET /api/batches/{batchId} 返回状态与计数。",
-      "frontend": {
-        "applicable": true,
-        "reason": "页面由 MOD-02 承担",
-        "design_markdown": "状态与操作一致，加载时按钮禁用",
-        "pages": [
-          {
-            "id": "UI-01",
-            "title": "供应商同步",
-            "route": "/sync",
-            "layout_markdown": "居中紧凑列表、供应商选择、同步按钮与状态区域",
-            "user_actions": [
-              "选择供应商→同步→显示状态"
-            ],
-            "states": [
-              "loading",
-              "empty",
-              "error",
-              "success"
-            ],
-            "api_bindings": [
-              "POST /api/sync → SyncApiContract"
-            ],
-            "acceptance": [
-              "按钮点击后能看到结果"
-            ],
-            "prototype_reference": "本次拟定，尚未生成原型"
-          }
-        ]
-      },
-      "backend": {
-        "applicable": false,
-        "reason": "API由 MOD-01 承担",
-        "design_markdown": "复合唯一键与事务落库，结构化错误响应"
-      },
-      "documentation": {
-        "deliverables": [
-          "docs/sync.md 使用与配置指南"
-        ],
-        "acceptance": [
-          "按文档可复现同步闭环"
-        ]
-      },
-      "tasks": [
-        {
-          "id": "TASK-02",
-          "title": "同步管理页可操作",
-          "goal": "同步管理页可操作",
-          "depends_on": [
-            "TASK-01"
-          ],
-          "inputs": [
-            {
-              "name": "api",
-              "type": "SyncApiContract",
-              "source": "TASK-01.api",
-              "required": true,
-              "validation": "包含同步和状态查询接口"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "result",
-              "type": "FrontendArtifact",
-              "destination": "MS-01 发布验收",
-              "guarantee": "同步管理页可操作 可验收"
-            }
-          ],
-          "steps": [
-            "验证协议后映射到 BookBatch"
-          ],
-          "failure_handling": [
-            {
-              "scenario": "非法外部 ID",
-              "behavior": "拒绝记录并返回字段错误",
-              "retry": "不重试校验失败",
-              "idempotency": "相同输入获得相同映射结果"
-            }
-          ],
-          "acceptance": [
-            "合法记录映射成功，非法 ID 被拒绝"
-          ],
-          "tests": [
-            "单元：空 ID → 字段错误"
-          ],
-          "patterns": [],
-          "layer": "frontend",
-          "milestone_id": "MS-01"
-        },
-        {
-          "id": "TASK-03",
-          "title": "验证页面到持久化完整闭环",
-          "goal": "验证页面到持久化完整闭环",
-          "depends_on": [
-            "TASK-01"
-          ],
-          "inputs": [
-            {
-              "name": "api",
-              "type": "SyncApiContract",
-              "source": "TASK-01.api",
-              "required": true,
-              "validation": "包含同步和状态查询接口"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "result",
-              "type": "IntegrationArtifact",
-              "destination": "MS-01 发布验收",
-              "guarantee": "验证页面到持久化完整闭环 可验收"
-            }
-          ],
-          "steps": [
-            "验证协议后映射到 BookBatch"
-          ],
-          "failure_handling": [
-            {
-              "scenario": "非法外部 ID",
-              "behavior": "拒绝记录并返回字段错误",
-              "retry": "不重试校验失败",
-              "idempotency": "相同输入获得相同映射结果"
-            }
-          ],
-          "acceptance": [
-            "合法记录映射成功，非法 ID 被拒绝"
-          ],
-          "tests": [
-            "单元：空 ID → 字段错误"
-          ],
-          "patterns": [],
-          "layer": "integration",
-          "milestone_id": "MS-01"
-        },
-        {
-          "id": "TASK-04",
-          "title": "使用部署指南完整",
-          "goal": "使用部署指南完整",
-          "depends_on": [
-            "TASK-01"
-          ],
-          "inputs": [
-            {
-              "name": "api",
-              "type": "SyncApiContract",
-              "source": "TASK-01.api",
-              "required": true,
-              "validation": "包含同步和状态查询接口"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "result",
-              "type": "DocumentationArtifact",
-              "destination": "MS-01 发布验收",
-              "guarantee": "使用部署指南完整 可验收"
-            }
-          ],
-          "steps": [
-            "验证协议后映射到 BookBatch"
-          ],
-          "failure_handling": [
-            {
-              "scenario": "非法外部 ID",
-              "behavior": "拒绝记录并返回字段错误",
-              "retry": "不重试校验失败",
-              "idempotency": "相同输入获得相同映射结果"
-            }
-          ],
-          "acceptance": [
-            "合法记录映射成功，非法 ID 被拒绝"
-          ],
-          "tests": [
-            "单元：空 ID → 字段错误"
-          ],
-          "patterns": [],
-          "layer": "documentation",
-          "milestone_id": "MS-01"
-        }
-      ]
-    }
-  ],
   "decisions": [
     {
       "id": "DEC-01",
@@ -405,5 +126,258 @@ decision.tasks 与 task.patterns 双向一致。
       ]
     }
   ],
-  "overview_update_markdown": "完整概要模块章节：MOD-01提供API；MOD-02负责界面；共同交付MS-01。"
+  "overview_update_markdown": "完整概要模块章节：MOD-01提供API；MOD-02负责界面；共同交付MS-01。",
+  "modules": [
+    {
+      "id": "MOD-01",
+      "title": "同步服务",
+      "responsibility": "同步服务",
+      "boundary": "只负责本模块契约，其他职责由相邻模块承担",
+      "design_markdown": "先描述模块整体，再定义任务。",
+      "interfaces_markdown": "POST /api/sync 返回 batchId；GET /api/batches/{batchId} 返回状态与计数。",
+      "frontend_applicable": false,
+      "frontend_reason": "页面由 MOD-02 承担",
+      "frontend_markdown": "状态与操作一致，加载时按钮禁用",
+      "backend_applicable": true,
+      "backend_reason": "API由 MOD-01 承担",
+      "backend_markdown": "复合唯一键与事务落库，结构化错误响应",
+      "documentation_deliverables": [
+        "docs/sync.md 使用与配置指南"
+      ],
+      "documentation_acceptance": [
+        "按文档可复现同步闭环"
+      ]
+    },
+    {
+      "id": "MOD-02",
+      "title": "操作体验与交付",
+      "responsibility": "操作体验与交付",
+      "boundary": "只负责本模块契约，其他职责由相邻模块承担",
+      "design_markdown": "先描述模块整体，再定义任务。",
+      "interfaces_markdown": "POST /api/sync 返回 batchId；GET /api/batches/{batchId} 返回状态与计数。",
+      "frontend_applicable": true,
+      "frontend_reason": "页面由 MOD-02 承担",
+      "frontend_markdown": "状态与操作一致，加载时按钮禁用",
+      "backend_applicable": false,
+      "backend_reason": "API由 MOD-01 承担",
+      "backend_markdown": "复合唯一键与事务落库，结构化错误响应",
+      "documentation_deliverables": [
+        "docs/sync.md 使用与配置指南"
+      ],
+      "documentation_acceptance": [
+        "按文档可复现同步闭环"
+      ]
+    }
+  ],
+  "task_records": [
+    {
+      "id": "TASK-01",
+      "title": "导入供应商元数据",
+      "goal": "只负责验证与归一化输入",
+      "depends_on": [],
+      "inputs": [
+        {
+          "name": "payload",
+          "type": "SupplierPayload",
+          "source": "供应商 HTTP 返回",
+          "required": true,
+          "validation": "外部 ID 必填，页码是正整数"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "api",
+          "type": "SyncApiContract",
+          "destination": "同步页面与集成测试",
+          "guarantee": "同步接口和状态查询契约完整"
+        }
+      ],
+      "steps": [
+        "验证协议后映射到 BookBatch"
+      ],
+      "failure_handling": [
+        {
+          "scenario": "非法外部 ID",
+          "behavior": "拒绝记录并返回字段错误",
+          "retry": "不重试校验失败",
+          "idempotency": "相同输入获得相同映射结果"
+        }
+      ],
+      "acceptance": [
+        "合法记录映射成功，非法 ID 被拒绝"
+      ],
+      "tests": [
+        "单元：空 ID → 字段错误"
+      ],
+      "patterns": [
+        "DEC-01"
+      ],
+      "layer": "backend",
+      "milestone_id": "MS-01",
+      "module_id": "MOD-01"
+    },
+    {
+      "id": "TASK-02",
+      "title": "同步管理页可操作",
+      "goal": "同步管理页可操作",
+      "depends_on": [
+        "TASK-01"
+      ],
+      "inputs": [
+        {
+          "name": "api",
+          "type": "SyncApiContract",
+          "source": "TASK-01.api",
+          "required": true,
+          "validation": "包含同步和状态查询接口"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "type": "FrontendArtifact",
+          "destination": "MS-01 发布验收",
+          "guarantee": "同步管理页可操作 可验收"
+        }
+      ],
+      "steps": [
+        "验证协议后映射到 BookBatch"
+      ],
+      "failure_handling": [
+        {
+          "scenario": "非法外部 ID",
+          "behavior": "拒绝记录并返回字段错误",
+          "retry": "不重试校验失败",
+          "idempotency": "相同输入获得相同映射结果"
+        }
+      ],
+      "acceptance": [
+        "合法记录映射成功，非法 ID 被拒绝"
+      ],
+      "tests": [
+        "单元：空 ID → 字段错误"
+      ],
+      "patterns": [],
+      "layer": "frontend",
+      "milestone_id": "MS-01",
+      "module_id": "MOD-02"
+    },
+    {
+      "id": "TASK-03",
+      "title": "验证页面到持久化完整闭环",
+      "goal": "验证页面到持久化完整闭环",
+      "depends_on": [
+        "TASK-01"
+      ],
+      "inputs": [
+        {
+          "name": "api",
+          "type": "SyncApiContract",
+          "source": "TASK-01.api",
+          "required": true,
+          "validation": "包含同步和状态查询接口"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "type": "IntegrationArtifact",
+          "destination": "MS-01 发布验收",
+          "guarantee": "验证页面到持久化完整闭环 可验收"
+        }
+      ],
+      "steps": [
+        "验证协议后映射到 BookBatch"
+      ],
+      "failure_handling": [
+        {
+          "scenario": "非法外部 ID",
+          "behavior": "拒绝记录并返回字段错误",
+          "retry": "不重试校验失败",
+          "idempotency": "相同输入获得相同映射结果"
+        }
+      ],
+      "acceptance": [
+        "合法记录映射成功，非法 ID 被拒绝"
+      ],
+      "tests": [
+        "单元：空 ID → 字段错误"
+      ],
+      "patterns": [],
+      "layer": "integration",
+      "milestone_id": "MS-01",
+      "module_id": "MOD-02"
+    },
+    {
+      "id": "TASK-04",
+      "title": "使用部署指南完整",
+      "goal": "使用部署指南完整",
+      "depends_on": [
+        "TASK-01"
+      ],
+      "inputs": [
+        {
+          "name": "api",
+          "type": "SyncApiContract",
+          "source": "TASK-01.api",
+          "required": true,
+          "validation": "包含同步和状态查询接口"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "type": "DocumentationArtifact",
+          "destination": "MS-01 发布验收",
+          "guarantee": "使用部署指南完整 可验收"
+        }
+      ],
+      "steps": [
+        "验证协议后映射到 BookBatch"
+      ],
+      "failure_handling": [
+        {
+          "scenario": "非法外部 ID",
+          "behavior": "拒绝记录并返回字段错误",
+          "retry": "不重试校验失败",
+          "idempotency": "相同输入获得相同映射结果"
+        }
+      ],
+      "acceptance": [
+        "合法记录映射成功，非法 ID 被拒绝"
+      ],
+      "tests": [
+        "单元：空 ID → 字段错误"
+      ],
+      "patterns": [],
+      "layer": "documentation",
+      "milestone_id": "MS-01",
+      "module_id": "MOD-02"
+    }
+  ],
+  "page_records": [
+    {
+      "id": "UI-01",
+      "title": "供应商同步",
+      "route": "/sync",
+      "layout_markdown": "居中紧凑列表、供应商选择、同步按钮与状态区域",
+      "user_actions": [
+        "选择供应商→同步→显示状态"
+      ],
+      "states": [
+        "loading",
+        "empty",
+        "error",
+        "success"
+      ],
+      "api_bindings": [
+        "POST /api/sync → SyncApiContract"
+      ],
+      "acceptance": [
+        "按钮点击后能看到结果"
+      ],
+      "prototype_reference": "本次拟定，尚未生成原型",
+      "module_id": "MOD-02"
+    }
+  ]
 }
