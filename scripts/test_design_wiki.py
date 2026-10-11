@@ -45,3 +45,17 @@ class WikiTests(unittest.TestCase):
         with self.assertRaises(ValueError): state_validate({'bad': 'text'})
         with self.assertRaises(ValueError): managed('<!-- dsh-navigation:start -->', 'new')
         with self.assertRaises(ValueError): assemble({}, {}, REPO, '../1', 1, 'detailed', json.dumps(example()))
+
+class MvpWikiTests(unittest.TestCase):
+    def test_new_mvp_pages_links_and_old_fixed_versions_survive(self):
+        from test_mvp_design import example2
+        pages, state = assemble({}, {}, REPO, 17, 100, 'detailed', json.dumps(example()))
+        fixed = {k:v for k,v in pages.items() if '-Run-100' in k}
+        pages, state = assemble(pages, state, REPO, 17, 200, 'detailed', json.dumps(example2()))
+        self.assertEqual(fixed, {k:v for k,v in pages.items() if '-Run-100' in k})
+        self.assertIn('](Issue-17-Detailed-Milestones)', pages['Issue-17-Detailed.md'])
+        self.assertIn('界面与交互', pages['_Sidebar.md'])
+        self.assertIn('SyncApiContract', pages['Issue-17-Detailed-MOD-02.md'])
+        self.assertIn('发布门槛', pages['Issue-17-Detailed-Milestones.md'])
+        again, _ = assemble(pages, state, REPO, 17, 100, 'detailed', json.dumps(example()))
+        self.assertEqual(fixed, {k:v for k,v in again.items() if '-Run-100' in k})
