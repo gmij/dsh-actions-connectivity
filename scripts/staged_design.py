@@ -76,10 +76,13 @@ def generate_staged(original, level, out_dir, invoke):
         else:
             prompt = stage_prompt(original, name, fields, assembled, level)
             response = invoke(prompt, name)
+            if not response.strip():
+                raise ValueError(f"Design stage {name} returned empty final text; inspect stage-{name}-result.jsonl for model termination reason")
             try:
                 fragment = json.loads(response)
             except json.JSONDecodeError as exc:
-                raise ValueError(f"Design stage {name} returned invalid/truncated JSON: {exc}") from exc
+                prefix = response.lstrip()[:80].replace("\\n", " ")
+                raise ValueError(f"Design stage {name} returned non-JSON/incomplete text ({len(response)} chars; leading={prefix!r}): {exc}") from exc
         required = set(fields)
         if name == "core" and level == "detailed":
             required.add("overview_update_markdown")
