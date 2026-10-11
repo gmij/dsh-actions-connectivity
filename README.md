@@ -1,6 +1,6 @@
 # DSH + GitHub Actions + Copilot
 
-这是 DSH 集成测试仓库，已验证 DSH headless 在 Actions 中使用 Copilot gpt-5.4-mini 完成推理。
+这是 DSH 集成测试仓库。DSH 是执行引擎，推理模型由各角色的注册配置选择，通过 GitHub Copilot API 接入。
 
 ## 原生下拉框选择 agent
 
@@ -89,7 +89,9 @@ GitHub Pages 已启用，并兼容仓库所有者的自定义域名。23 项单�
 
 ## 概要设计与详细设计智能体
 
-通过原生 Assign to Agent 选择 **DSH Overview Design** 或 **DSH Detailed Design**，仍由 MCP 调度到真实 DSH，实际模型为 `gpt-5.4-mini`。
+通过原生 Assign to Agent 选择 **DSH Overview Design** 或 **DSH Detailed Design**，仍由 MCP 调度到真实 DSH。实际模型由 `agents/registry.json` 的角色配置控制，调度层 Model 下拉框不会覆盖它。
+
+模型选择：概要与详细设计已用正式 `gpt-5.4` 完成真实验收，目前按用户要求测试 `claude-haiku-5.5`。Haiku 输出必须通过同一套 V2 契约校验，失败不会替换 Wiki 成功版本。简单连通性与其他角色的模型配置独立；DSH 名称不代表调用 DeepSeek 推理模型。
 
 ### 设计顺序：MVP 里程碑 → 模块 → 模块内任务
 
@@ -142,3 +144,12 @@ V2 JSON 的任务嵌套在 `modules[].tasks`；顶层不再有全局 tasks。产
 42 项单元测试已在本地和 Design Wiki 的真实 Actions 测试阶段通过，包含协作规范注入/任务指纹、目录及模块导航、人工页面保留、版本不可变、旧版本补发及模块调整后的侧栏。首次发布因 Wiki 未初始化失败；用户创建 Home 后，重新运行 [38115868477（attempt 2）](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38115868477/attempts/2)，test/publish 均成功。概要 #16 与模块详细设计 #17 已真实推送到 Wiki，使用本仓库 GITHUB_TOKEN，无需新增个人 PAT；保留首页人工内容。共生成 26 个预览/索引文件，含目录、侧栏、任务契约、模式依据、3 个模块、概要修订及固定历史版本。两个 Issue 均已回填 Wiki 链接：[概要回填](https://github.com/gmij/dsh-actions-connectivity/issues/16#issuecomment-6105999843)、[详细设计回填](https://github.com/gmij/dsh-actions-connectivity/issues/17#issuecomment-6105999950)。
 
 阅读入口：[Wiki 文档目录](https://github.com/gmij/dsh-actions-connectivity/wiki/DSH-Documents)。从这里进入 [概要设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-16-Overview) 或 [模块详细设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed)。以后成功的设计交付会自动发布并在原 Issue 引导到 Wiki；无需下载 Markdown。此次复用了已有成功 DSH 设计，不是重新调用模型，未声称完成浏览器视觉检查。
+
+
+### MVP 设计 V2 的真实验收
+
+51 项单元测试通过。正式 GPT-5.4 的 [概要运行 38118093929](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38118093929) 与 [详细运行 38118091664](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38118091664) 均在真实 DSH 中成功；对应 Design Wiki 发布运行 38118345524 和 38118417826 的 test/publish 均成功，原 Issue 已回填新版本链接。
+
+本轮详细设计包含 1 个可交互 MVP 里程碑、3 个模块、7 个模块内任务，覆盖 backend/frontend/integration/documentation 四类；包含 `/ops/sync` 页面、4 个 API 绑定、5 个集成验收场景、发布与回滚方案。阅读顺序为里程碑 → 模块完整设计 → 模块内任务。独立概要修订与详细模块同步生成。上述是设计交付及其发布验证，业务代码与这些业务集成测试尚未执行。
+
+[详细设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed) · [MVP 里程碑](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-Milestones) · [界面契约](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-UI) · [GPT-5.4 固定版本](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-Run-38118091664)
