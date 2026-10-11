@@ -137,4 +137,6 @@ JSON 契约由可信脚本校验，失败不会冒充设计成功；正文和任
 
 ### Wiki 与协作规范验证（2026-10-11）
 
-42 项单元测试已在本地和 Design Wiki 的真实 Actions 测试阶段通过，包含协作规范注入/任务指纹、目录及模块导航、人工页面保留、版本不可变、旧版本补发及模块调整后的侧栏。真实补发运行 [38115868477](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38115868477) 从概要 #16 和模块详细设计 #17 的成功 DSH 交付生成了 26 个预览文件。仓库 has_wiki/has_discussions 均为 true；但 Wiki Git 后端返回 repository_unavailable，匿名 Git 读取返回 401，发布尚未完成，未回写成功链接。请先在 Wiki 中保存首个 Home 页面，然后重跑此工作流；若 Home 已存在，应检查发布身份权限。当前预览已保留为 design-wiki-preview artifact，不能将其描述为已上线 Wiki。
+42 项单元测试已在本地和 Design Wiki 的真实 Actions 测试阶段通过，包含协作规范注入/任务指纹、目录及模块导航、人工页面保留、版本不可变、旧版本补发及模块调整后的侧栏。首次发布因 Wiki 未初始化失败；用户创建 Home 后，重新运行 [38115868477（attempt 2）](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38115868477/attempts/2)，test/publish 均成功。概要 #16 与模块详细设计 #17 已真实推送到 Wiki，使用本仓库 GITHUB_TOKEN，无需新增个人 PAT；保留首页人工内容。共生成 26 个预览/索引文件，含目录、侧栏、任务契约、模式依据、3 个模块、概要修订及固定历史版本。两个 Issue 均已回填 Wiki 链接：[概要回填](https://github.com/gmij/dsh-actions-connectivity/issues/16#issuecomment-6105999843)、[详细设计回填](https://github.com/gmij/dsh-actions-connectivity/issues/17#issuecomment-6105999950)。
+
+阅读入口：[Wiki 文档目录](https://github.com/gmij/dsh-actions-connectivity/wiki/DSH-Documents)。从这里进入 [概要设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-16-Overview) 或 [模块详细设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed)。以后成功的设计交付会自动发布并在原 Issue 引导到 Wiki；无需下载 Markdown。此次复用了已有成功 DSH 设计，不是重新调用模型，未声称完成浏览器视觉检查。
