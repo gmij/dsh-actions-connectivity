@@ -4,6 +4,7 @@ Each stage emits a JSON object with exactly its allotted top-level fields.
 Local checkpoints are trusted only within the same workflow artifact directory.
 """
 import json
+import re
 from pathlib import Path
 
 CORE = ("schema_version", "level", "summary_markdown", "design_markdown",
@@ -65,6 +66,14 @@ def stage_prompt(original, name, keys, completed, level):
             previous + "\n现在只输出本阶段的 JSON object。")
 
 
+def parse_stage_json(response):
+    """Accept one complete JSON code fence, never arbitrary prose or partial fences."""
+    value = response.strip()
+    match = re.fullmatch(r"```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```", value, flags=re.IGNORECASE)
+    if match:
+        value = match.group(1).strip()
+    return json.loads(value)
+
 def generate_staged(original, level, out_dir, invoke):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -79,7 +88,7 @@ def generate_staged(original, level, out_dir, invoke):
             if not response.strip():
                 raise ValueError(f"Design stage {name} returned empty final text; inspect stage-{name}-result.jsonl for model termination reason")
             try:
-                fragment = json.loads(response)
+                fragment = parse_stage_json(response)
             except json.JSONDecodeError as exc:
                 prefix = response.lstrip()[:80].replace("\\n", " ")
                 raise ValueError(f"Design stage {name} returned non-JSON/incomplete text ({len(response)} chars; leading={prefix!r}): {exc}") from exc
