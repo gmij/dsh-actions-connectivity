@@ -227,7 +227,7 @@ def normalize_wire(data):
     fields = {'schema_version', 'level', 'summary_markdown', 'design_markdown', 'experience', 'milestones', 'modules', 'decisions', 'task_records', 'page_records'}
     if data.get('level') == 'detailed': fields.add('overview_update_markdown')
     if 'delivery' in data: fields.add('delivery')
-    if set(data) != fields: raise ValueError('Wire fields must exactly match the supplied V2 transport schema')
+    if set(data) != fields: raise ValueError(f"Wire root: missing {sorted(fields - set(data))}; extra {sorted(set(data) - fields)}. Remove extra root keys entirely, including null notes/placeholders. Keep all required fields including delivery. Use exactly the supplied V2 transport schema.")
     keys = {'id', 'title', 'responsibility', 'boundary', 'design_markdown', 'interfaces_markdown', 'frontend_applicable', 'frontend_reason', 'frontend_markdown', 'backend_applicable', 'backend_reason', 'backend_markdown', 'documentation_deliverables', 'documentation_acceptance'}
     if not isinstance(data['modules'], list) or not 1 <= len(data['modules']) <= 20: raise ValueError('Expected bounded modules')
     modules = {}
