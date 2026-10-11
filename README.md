@@ -118,3 +118,19 @@ JSON 契约由可信脚本校验，失败不会冒充设计成功；正文和任
 - 模块化详细设计 [Issue #17](https://github.com/gmij/dsh-actions-connectivity/issues/17#issuecomment-6105854744) 的真实 [DSH run 38115050536](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38115050536) route/agent/publish 全部成功。交付供应商适配、幂等持久化、批次汇总 3 个独立模块，修订后的概要模块章节、模块依赖与对应任务契约。现场核对生产者/消费者 DTO、pageId/hasMore 传递、事务内页去重与批次统计、崩溃重放及 Adapter 决策依据。
 - 38 项单元测试通过，含任务依赖、类型一致性、决策关联、模块唯一归属、过大设计必须拆分、概要修订必填、一次修正上限与固定文件路径。首次试验中的无效契约均被校验器拒绝；修复提示结构、错误反馈及文档长度预算后重新完成真实验收。
 - 本次模块化运行期间修复了 Issue 中模块相对链接的格式，并用同一已校验 JSON 补全该条 Issue 回写；未来运行会自动包含模块正文。交付包内部模块相对链接保持有效。
+
+## Discussions、Issues 与 Wiki 的协作约定
+
+| 位置 | 保存内容 | 进入执行的条件 |
+|---|---|---|
+| Discussions | 需求澄清、方案比较、过程交流、开放问题和共识 | 人确认后，将结论整理到 Issue，并互相链接 |
+| Issues | 已确认需求、输入约束、Agent、依赖、验收条件、执行状态及结果证据 | 在原生 Assign to Agent 下拉框指派指定 DSH 角色 |
+| Wiki | 概要和模块详细设计、任务输入输出、模式依据、概要修订及历史版本 | 可信发布器读取成功的 DSH 设计交付 |
+
+共享规则见 [agents/collaboration-instructions.md](agents/collaboration-instructions.md)，已注入实际 DSH 工作提示词，规则变更会更新任务指纹。讨论或 Wiki 更新本身不启动执行；模型提案不等于业务批准。当前不会自动创建或回复 Discussion，也不会自动读取其链接正文，请将关键已确认结论粘贴到 Issue。日常聊天不会自动整段搬运到仓库。
+
+## GitHub Wiki 设计文档同步
+
+`Design Wiki` 在 Issue DSH agent 成功结束后校验本仓库默认分支上的来源，跳过非设计角色，再把设计交付同步为可直接阅读的 Wiki 页面：文档目录、侧栏、概要/详细设计、逐任务契约、设计决策、独立模块、概要同步修订与历史版本。保留人工页面及 Home/侧栏中的人工内容；不执行模型输出。最新页面与按 DSH run 固定的版本同时保存，补发旧运行不会倒退最新版本。Wiki 的设计完成不代表业务验收通过。
+
+发布成功后才在原 Issue 写入真实 Wiki 链接。同步失败时仍保留可检查的 `design-wiki-preview`，修复后重跑发布工作流即可，无需重新调用模型。Actions → Design Wiki → Run workflow 可输入逗号分隔的成功运行 ID；dry_run 只生成预览。首次启用 Wiki 后，需要在 Wiki 中创建首个 Home 页面以初始化 Wiki Git 后端。默认使用本仓库 GITHUB_TOKEN；若 Wiki 写权限不支持该身份，可配置仅覆盖本仓库的 `WIKI_PUBLISH_TOKEN`。发布器正常推送，不强制覆盖历史。
