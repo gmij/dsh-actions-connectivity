@@ -27,6 +27,26 @@
       "patch": "agents/prototype.patch.json",
       "model": "gpt-5.4-mini",
       "mode": "prototype"
+    },
+    "overview": {
+      "name": "概要设计",
+      "description": "架构、模块边界、领域模型、接口和里程碑",
+      "enabled": true,
+      "label": "agent:overview",
+      "patch": "agents/overview.patch.json",
+      "model": "gpt-5.4-mini",
+      "mode": "design",
+      "design_level": "overview"
+    },
+    "detailed": {
+      "name": "详细设计",
+      "description": "逐任务输入输出、依赖、模式依据、异常幂等和验收测试",
+      "enabled": true,
+      "label": "agent:detailed",
+      "patch": "agents/detailed.patch.json",
+      "model": "gpt-5.4-mini",
+      "mode": "design",
+      "design_level": "detailed"
     }
   }
 }
