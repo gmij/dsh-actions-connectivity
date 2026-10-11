@@ -1,0 +1,22 @@
+name: 指派 DSH agent
+description: 选择仓库已登记的 agent，自动在 Actions 后台执行
+title: "[Agent] "
+body:
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      description: 选项对应 agents/registry.json；现有 Issue 可添加 agent:* 标签指派
+      options:
+        - reviewer
+        - connectivity
+    validations:
+      required: true
+  - type: textarea
+    id: task
+    attributes:
+      label: Task
+      description: 描述任务、相关文件或代码、预期输出和验收标准
+      placeholder: 请审查下面的代码，并说明问题与修复建议……
+    validations:
+      required: true
