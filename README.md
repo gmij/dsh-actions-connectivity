@@ -91,7 +91,7 @@ GitHub Pages 已启用，并兼容仓库所有者的自定义域名。23 项单�
 
 通过原生 Assign to Agent 选择 **DSH Overview Design** 或 **DSH Detailed Design**，仍由 MCP 调度到真实 DSH。实际模型由 `agents/registry.json` 的角色配置控制，调度层 Model 下拉框不会覆盖它。
 
-模型选择：概要与详细设计已用正式 `gpt-5.4` 完成真实验收，目前按用户要求测试 `claude-haiku-5.5`。Haiku 输出必须通过同一套 V2 契约校验，失败不会替换 Wiki 成功版本。简单连通性与其他角色的模型配置独立；DSH 名称不代表调用 DeepSeek 推理模型。
+模型选择：概要与详细设计现使用 `claude-haiku-5.5`，已通过真实 DSH、V2 契约校验与 Wiki 发布。采用显式 `anthropic-messages` 协议，输出预算 65,536 token；每次设计推理最多 10 分钟，最多一次修复，Actions 作业上限 25 分钟。正式 `gpt-5.4` 的成功版本保留为对照；无效输出不会替换 Wiki 成功版本。简单连通性与其他角色的模型配置独立；DSH 名称不代表调用 DeepSeek 推理模型。
 
 ### 设计顺序：MVP 里程碑 → 模块 → 模块内任务
 
@@ -153,3 +153,12 @@ V2 JSON 的任务嵌套在 `modules[].tasks`；顶层不再有全局 tasks。产
 本轮详细设计包含 1 个可交互 MVP 里程碑、3 个模块、7 个模块内任务，覆盖 backend/frontend/integration/documentation 四类；包含 `/ops/sync` 页面、4 个 API 绑定、5 个集成验收场景、发布与回滚方案。阅读顺序为里程碑 → 模块完整设计 → 模块内任务。独立概要修订与详细模块同步生成。上述是设计交付及其发布验证，业务代码与这些业务集成测试尚未执行。
 
 [详细设计](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed) · [MVP 里程碑](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-Milestones) · [界面契约](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-UI) · [GPT-5.4 固定版本](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-Run-38118091664)
+
+
+### Claude Haiku 5.5 实测验收
+
+[概要运行 38118595375](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38118595375) 与 [详细运行 38118881470](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38118881470) 均通过 DSH 的真实 GitHub Copilot 接口生成并通过 V2 校验。详细设计发布运行 [38119120665](https://github.com/gmij/dsh-actions-connectivity/actions/runs/38119120665) 的 test/publish 成功，Issue #17 已回填 Wiki 链接。
+
+Haiku 最新详细设计包含 1 个 MVP 里程碑、4 个模块、6 个实现任务、5 个集成验收场景，含 `/sync` 页面、前后端契约、四种页面状态、逐任务输入输出、模式选择依据及发布回滚说明；独立概要修订与这 4 个模块保持一致。业务实现与业务集成测试仍是待执行计划。初次接入需要补显式 API 协议；详细设计曾因 32,768 token 输出上限截断，提升至 65,536 后完整生成（实际输出 40,987 token），未通过自动修复重复生成。
+
+[Haiku 详细固定版本](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-Run-38118881470) · [Haiku 概要固定版本](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-16-Overview-Run-38118595375) · [详细设计同步后的概要模块说明](https://github.com/gmij/dsh-actions-connectivity/wiki/Issue-17-Detailed-Overview-Update)
