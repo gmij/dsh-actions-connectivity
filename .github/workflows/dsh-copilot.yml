@@ -33,6 +33,8 @@ jobs:
                 "providers": {
                   "github-copilot": {
                     "apiKeyEnv": "GITHUB_TOKEN",
+                    "baseURL": "https://api.githubcopilot.com",
+                    "headers": {"Copilot-Integration-Id": "agentic-workflows"},
                     "models": [
                       {
                         "id": "gpt-5.4-mini"
