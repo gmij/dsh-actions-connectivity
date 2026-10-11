@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+import issue_agent
 
 from design_output import validate, write_bundle
 
@@ -23,6 +25,26 @@ def example():
 
 
 class DesignTests(unittest.TestCase):
+    def test_repair_consumes_error_feedback_and_revalidates_whole_design(self):
+        invalid = example()
+        invalid['tasks'][1]['inputs'][0]['type'] = 'WrapperRequest'
+        with tempfile.TemporaryDirectory() as folder, patch.object(issue_agent, 'OUT', Path(folder)), patch.object(issue_agent, 'invoke_dsh', return_value=json.dumps(example())) as invoke:
+            answer = issue_agent.design_with_repair(json.dumps(invalid), ['dsh'], 'original requirements', 'detailed')
+            self.assertIn('TASK-01.batch', answer)
+            invoke.assert_called_once()
+            self.assertIn('WrapperRequest', invoke.call_args.args[1])
+            self.assertIn('BookBatch', invoke.call_args.args[1])
+            self.assertTrue((Path(folder) / 'contract-error.txt').is_file())
+
+    def test_failed_repair_is_bounded_and_never_delivers_invalid_contract(self):
+        invalid = example()
+        invalid['tasks'][1]['depends_on'] = ['TASK-01.batch']
+        with tempfile.TemporaryDirectory() as folder, patch.object(issue_agent, 'OUT', Path(folder)), patch.object(issue_agent, 'invoke_dsh', return_value=json.dumps(invalid)) as invoke:
+            with self.assertRaises(ValueError):
+                issue_agent.design_with_repair(json.dumps(invalid), ['dsh'], 'requirements', 'detailed')
+            invoke.assert_called_once()
+            self.assertFalse((Path(folder) / 'design').exists())
+
     def test_valid_contract_produces_only_fixed_files_and_readable_contracts(self):
         with tempfile.TemporaryDirectory() as folder:
             answer = write_bundle(json.dumps(example()), Path(folder), 'detailed')
