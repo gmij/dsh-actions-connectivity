@@ -1,0 +1,8 @@
+[
+  {
+    "id": "system-prompt",
+    "config": {
+      "personaPrefix": "You are a connectivity-test agent. Follow the requested output format and do not use tools."
+    }
+  }
+]
