@@ -92,6 +92,42 @@ class StagedDesignTests(unittest.TestCase):
                 generate_staged('brief', 'overview', directory, model)
             self.assertEqual(calls, ['core', 'core-schema-retry'])
 
+    def test_channel_transport_retry_corrects_enum(self):
+        core = {'schema_version': 2, 'level': 'overview', 'summary_markdown': 'S',
+                'design_markdown': 'D', 'experience': {}, 'milestones': [],
+                'modules': [], 'decisions': []}
+        fragments = {'core': core, 'tasks': {'task_records': []},
+                     'pages': {'page_records': []}, 'apis': {'apis': []},
+                     'bindings': {'bindings': []},
+                     'channels': {'channels': [{'id': 'IPC-01',
+                                  'transport': '扩展内部 IPC 消息'}]},
+                     'prototype': {'prototype_html': ''}}
+        calls = []
+        def model(prompt, stage):
+            calls.append(stage)
+            if stage == 'channels-transport-retry':
+                self.assertIn('process-stdio', prompt)
+                return json.dumps({'channels': [{'id': 'IPC-01', 'transport': 'ipc'}]})
+            return json.dumps(fragments[stage])
+        with tempfile.TemporaryDirectory() as directory:
+            result = json.loads(generate_staged('brief', 'overview', directory, model))
+            self.assertEqual(result['delivery']['channels'][0]['transport'], 'ipc')
+            self.assertEqual(calls.count('channels-transport-retry'), 1)
+
+    def test_channel_transport_retry_rejects_non_enum(self):
+        core = {'schema_version': 2, 'level': 'overview', 'summary_markdown': 'S',
+                'design_markdown': 'D', 'experience': {}, 'milestones': [],
+                'modules': [], 'decisions': []}
+        fragments = {'core': core, 'tasks': {'task_records': []},
+                     'pages': {'page_records': []}, 'apis': {'apis': []},
+                     'bindings': {'bindings': []},
+                     'channels': {'channels': [{'id': 'IPC-01', 'transport': '中文说明'}]}}
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, 'transport retry still violates'):
+                generate_staged('brief', 'overview', directory,
+                                lambda prompt, stage: json.dumps(fragments.get(stage, fragments['channels'])))
+            self.assertFalse(Path(directory, 'stage-channels.json').exists())
+
     def test_conflicting_envelope_is_rejected(self):
         fragments = {
             'core': {'schema_version': 2, 'level': 'overview',
