@@ -12,6 +12,7 @@ import urllib.request
 import zipfile
 
 from issue_agent import api, comments
+from prototype_output import CSP, LEGACY_CSP
 
 BRANCH = 'prototype-previews'
 SAFE_PATH = re.compile(r'(?:index\.html|previews/issue-[1-9]\d*/(?:runs/[1-9]\d*/)?index\.html)\Z')
@@ -74,9 +75,10 @@ def validate_run(run, repo, default_branch):
 def validate_html(html):
     if len(html.encode()) > 300_000 or not re.search(r'<!doctype html', html, re.I):
         raise ValueError('Invalid prototype HTML')
-    if 'Content-Security-Policy' not in html or 'connect-src &#39;none&#39;' not in html:
+    if CSP not in html and LEGACY_CSP not in html:
         raise ValueError('Prototype must include the trusted offline CSP')
-    return html
+    # Keep the same policy, using literal quotes so CSP rewriters can tokenize it.
+    return html.replace(LEGACY_CSP, CSP)
 
 
 def assemble(existing, issue, run_id, html):
@@ -84,10 +86,12 @@ def assemble(existing, issue, run_id, html):
     positive(run_id)
     if any(not SAFE_PATH.fullmatch(path) for path in existing):
         raise ValueError('Unexpected file in preview storage branch')
+    html = validate_html(html)
     latest = f'previews/issue-{issue}/index.html'
     version = f'previews/issue-{issue}/runs/{run_id}/index.html'
-    updated = dict(existing)
-    updated[version] = validate_html(html)
+    updated = {path: validate_html(content) if path.startswith('previews/') else content
+               for path, content in existing.items()}
+    updated[version] = html
     # A manual replay of an older run must not roll the latest preview backwards.
     versions = [int(path.split('/')[3]) for path in updated
                 if path.startswith(f'previews/issue-{issue}/runs/')]
