@@ -283,6 +283,9 @@ def run():
         answer = design_with_repair(answer, args, prompt, metadata['config']['design_level'])
     (OUT / "answer.md").write_text(answer)
     print(answer)
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write("preview=" + ("true" if (OUT / "prototype/index.html").exists() else "false") + "\n")
 
 
 def publish():
