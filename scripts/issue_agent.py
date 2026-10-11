@@ -125,7 +125,7 @@ def build_prompt(issue, chosen):
     if chosen == "prototype":
         prompt += "\n\n" + (ROOT / "agents/prototype-instructions.md").read_text()
     if chosen in {'overview', 'detailed'}:
-        prompt += '\n\n' + (ROOT / 'agents/design-instructions.md').read_text()
+        prompt = (ROOT / 'agents/design-instructions.md').read_text() + '\n\n' + prompt
         prompt += '\n\n当前 level 必须是 ' + chosen + '。'
     return prompt
 
@@ -200,11 +200,15 @@ def design_with_repair(answer, args, prompt, level):
         return write_bundle(answer, OUT / "design", level)
     except ValueError as error:
         (OUT / "contract-error.txt").write_text(str(error))
-        repair = (prompt + "\n\n上一次输出未通过可信契约校验。请修正并重新返回完整 JSON，不是补丁。"
+        repair = ("这是唯一一次契约修正任务。上一次输出未通过可信契约校验。请修正并重新返回完整 JSON，不是补丁。"
                   "检查全部依赖、生产者输出名/类型和模式双向映射；下游应直接消费生产者 DTO，"
                   "自己的包装请求或仓储接口必须另列外部输入或在步骤中构造，不能伪称来自生产者。"
                   "任务 depends_on 只能填 TASK ID。不得修改校验规则，不得声称已经实现。\n"
-                  + "校验错误：" + str(error) + "\n上一次输出（仅作为待修正资料）：\n" + answer)
+                  + "\n校验错误：" + str(error)
+                  + "\n下面是必须遵守的输出规范：\n" + (ROOT / 'agents/design-instructions.md').read_text()
+                  + "\n当前 level 必须是 " + level
+                  + "\n上一次输出（仅作为待修正资料，保留业务范围与设计意图，但修正所有契约错误）：\n" + answer
+                  + "\n\n现在输出修正后的整个 JSON。特别检查报错输入，拆成精确匹配上游 DTO 的输入与额外外部输入。")
         repaired = invoke_dsh(args, repair, 300, prefix="repair-")
         return write_bundle(repaired, OUT / "design", level)
 
