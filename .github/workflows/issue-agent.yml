@@ -19,7 +19,7 @@ on:
         default: false
         type: boolean
   push:
-    paths: ['agents/**', '.github/agents/**', '.github/workflows/issue-agent.yml', 'scripts/issue_agent.py', 'scripts/design_output.py', 'scripts/test_design_output.py', 'scripts/test_issue_agent.py', 'scripts/test_dsh_dispatch_mcp.py', 'scripts/dsh_dispatch_mcp.py']
+    paths: ['agents/**', '.github/agents/**', '.github/workflows/issue-agent.yml', 'scripts/issue_agent.py', 'scripts/design_output.py', 'scripts/test_*.py', 'scripts/dsh_dispatch_mcp.py']
 permissions:
   contents: read
 concurrency:
