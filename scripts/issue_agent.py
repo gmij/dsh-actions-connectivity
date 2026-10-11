@@ -214,6 +214,7 @@ def design_with_repair(answer, args, prompt, level):
                   "自己的包装请求或仓储接口必须另列外部输入或在步骤中构造，不能伪称来自生产者。"
                   "任务 depends_on 只能填 TASK ID。不得修改校验规则，不得声称已经实现。\n"
                   + "\n校验错误：" + str(error)
+                  + "\n协作规范：\n" + collaboration_guide()
                   + "\n下面是必须遵守的输出规范：\n" + (ROOT / 'agents/design-instructions.md').read_text()
                   + "\n当前 level 必须是 " + level
                   + "\n上一次输出（仅作为待修正资料，保留业务范围与设计意图，但修正所有契约错误）：\n" + answer
