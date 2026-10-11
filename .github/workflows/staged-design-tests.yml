@@ -1,0 +1,27 @@
+name: Staged design tests
+on:
+  push:
+    branches:
+      - fix/staged-design-generation-20261011
+  pull_request:
+    paths:
+      - 'scripts/staged_design.py'
+      - 'scripts/staged_prototype.py'
+      - 'scripts/issue_agent.py'
+      - 'tests/test_staged_design.py'
+      - 'tests/test_staged_prototype.py'
+      - '.github/workflows/staged-design-tests.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify staged design unit tests
+        run: PYTHONPATH=scripts python -m unittest discover -s tests -p 'test_staged_*.py' -v
+      - name: Verify Python syntax
+        run: python -m py_compile scripts/staged_design.py scripts/staged_prototype.py scripts/issue_agent.py
