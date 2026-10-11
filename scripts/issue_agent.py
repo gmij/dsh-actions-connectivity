@@ -98,6 +98,10 @@ def route():
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     repo = os.environ["GITHUB_REPOSITORY"]
     manual = os.environ["GITHUB_EVENT_NAME"] == "workflow_dispatch"
+    if not manual and event.get("action") == "assigned" and event.get("assignee", {}).get("type") == "Bot":
+        output(run="false")
+        print("Skipped: native agent assignment uses its own execution engine")
+        return
     actor = event["sender"]["login"]
     permission = api("GET", f"/repos/{repo}/collaborators/{actor}/permission")["permission"]
     if permission not in {"write", "maintain", "admin"}:
