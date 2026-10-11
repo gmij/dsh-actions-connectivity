@@ -46,3 +46,5 @@ inputs/outputs 中 name 是英文字母开头的标识符，可包含数字和�
 decision.tasks 与 task.patterns 必须双向对应。所有文字字段不能为空。可信脚本校验生产者/消费者类型、依赖与模式映射并写入固定 Markdown/JSON 文件；你不需要调用文件或发布工具。
 
 最终自检：source 以 TASK- 开头时，整个字符串只能是 TASK-编号.输出名，不能添加“与”“或”、说明或字段访问；复杂描述写在 validation。下游若只处理 PageDto 中的单个 ItemDto，inputs 仍接收整个 PageDto，在 steps 中遍历 items，不要把 PageDto 的同一输出冒充 ItemDto。
+
+长度预算：design_markdown 正文最多 100000 字符；summary_markdown 和其他单字段最多 15000 字符；整体 JSON 不超过 350000 字符。详细设计以完整任务契约为优先，不因单字段旧预算而省略关键设计。
