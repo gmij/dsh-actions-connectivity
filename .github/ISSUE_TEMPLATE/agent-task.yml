@@ -9,6 +9,7 @@ body:
       description: 选项对应 agents/registry.json；现有 Issue 可添加 agent:* 标签指派
       options:
         - reviewer
+        - prototype
         - connectivity
     validations:
       required: true
