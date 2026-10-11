@@ -28,11 +28,11 @@ detailed：依据需求、概要和原型形成一致的完整设计。未提供
 
 有界面的需求默认 experience.interaction_mode=web。只有需求明确是 API 或 CLI 产品时可选 api/cli，并写清理由与可操作验收入口。模块没有前端或后端职责时 applicable=false，说明由哪个相邻模块承担；不为每个后端模块硬造页面。Web 产品整体必须有真实页面设计。
 
-前端：页面路由、组件布局、用户动作、状态与数据流、API绑定、权限、表单验证、加载/空/错误/成功状态、响应式和可访问性。采用极简舒适美学、紧凑居中布局，不能铺成宽大展示图。界面说明应足以实现，不能只写“做管理页面”。prototype_reference 标明真实原型来源或“本次拟定，尚未生成/确认原型”，不能伪造在线原型链接。
+前端：页面路由、组件布局、用户动作、状态与数据流、API绑定、权限、表单验证、加载/空/错误/成功状态、响应式和可访问性。采用极简舒适美学、紧凑居中布局，不能铺成宽大展示图。界面说明应足以实现，不能只写“做管理页面”。prototype_reference 写“本轮 delivery.prototype_html，发布后由可信流水线回填 Pages 链接与截图”。Web 设计必须在同轮生成可运行原型，不允许“未生成原型/待确认是否需要原型”。不能伪造部署 URL。
 
 后端：HTTP方法/路径、字段/类型/可空性、状态码及示例、权限、存储/唯一约束、事务、并发、重试固定上限、幂等与可观测性。前端页面绑定的接口必须在后端或跨模块契约中明确存在。
 
-文档：模块使用/接口/配置文档、里程碑运行与部署指南、测试场景与操作说明，明确产物位置及验收。页面设计输出 ui.md；文档清单输出 documentation.md；这两者是设计交付，不声称已经实现界面或写完所有后续开发文档。
+文档：模块使用/接口/配置文档、里程碑运行与部署指南、测试场景与操作说明，明确产物位置及验收。页面设计输出 ui.md；文档清单输出 documentation.md；同轮原型是演示界面，不是业务实现；使用模拟数据，不连接实际业务后端。
 
 ## 模块、任务与概要保持一致
 
@@ -52,7 +52,7 @@ detailed 同轮提供 overview_update_markdown：完整修订后的概要模块�
 
 只输出一个合法 JSON，不附围栏，按下方完整示例的结构填写业务。为降低复杂嵌套的错误，传输格式采用模块数组、独立页面记录和独立任务记录；每条记录必须给准确 module_id，不能让交付器猜归属。可信交付器会将记录归入指定模块，最终 design.json 只保存 modules[].tasks 和 modules[].frontend.pages；文档继续模块优先，任务记录不是全局任务文档，也不能先列任务再倒推模块。
 
-顶层必须且仅包含 schema_version=2、level、summary_markdown、design_markdown、experience、milestones、modules、page_records、task_records、decisions。仅 detailed 再加 overview_update_markdown；overview 禁止此额外字段。
+顶层必须且仅包含 schema_version=2、level、summary_markdown、design_markdown、experience、milestones、modules、page_records、task_records、decisions、delivery。仅 detailed 再加 overview_update_markdown；overview 禁止此额外字段。
 
 modules 每项严格使用示例的平铺字段：id/title/responsibility/boundary/design_markdown/interfaces_markdown/frontend_applicable/frontend_reason/frontend_markdown/backend_applicable/backend_reason/backend_markdown/documentation_deliverables/documentation_acceptance。适用字段必须是 JSON 布尔值，不是字符串。所有正文非空，文档清单及验收非空。前端模块必须 frontend_applicable=true 并定义 page_records；仅后端模块设 false 并说明界面由谁承担。
 
@@ -66,7 +66,151 @@ decisions 严格使用 id/pattern/problem/rationale/alternatives/tradeoffs/imple
 
 下面是完整合法传输结构示例，不是本次需求，不要照抄业务内容。请在相同结构内填当前需求。overview改level并删除overview_update_markdown，其他字段保留。Markdown换行使用JSON的一次转义换行，不要双重转义。总体正文最多100000字符，模块/前后端/接口正文各30000，其他字段15000，整体JSON350000，任务最多30、模块最多20、里程碑最多10。
 
+
+## 必须交付：结构化 HTTP 契约、逐操作字段映射、可运行原型
+
+delivery 只有 apis、bindings、prototype_html 三个字段。Web 的 overview 与 detailed 都必须提供。所有 API 必须结构化在 apis；interfaces_markdown 只写内部程序接口，不再塞一团 HTTP 地址和 DTO 简写。其他正文不要重新发明接口字段。页面 api_bindings 引用 API-ID 与动作，精确契约以 delivery 为唯一事实来源。
+
+apis 每项字段必须与完整示例相同：id(API-01)、module_id、task_id(该后端模块的 backend 任务)、method、path(不含查询串)、title、auth、request、request_example、responses。request 与 request_example 都只有 path/query/body；无 path 或 query 参数时用空 object schema 与 {} 示例，无 body 时用 {"type":"null"} 与 null 示例。URL {supplierId} 等占位符必须与 path.required 一致。
+
+响应每项只有 status(整数)、description、schema、example，至少一个 2xx 与一个 4xx/5xx。逐接口完整定义字段类型、必填、可空、枚举、字符串长度、数字范围、格式和合法示例。schema 使用内联 JSON Schema 子集：type/properties/required/additionalProperties/items/enum/minimum/maximum/minLength/maxLength/format/description；禁止 $ref/$defs/oneOf。对象必须 properties/required/additionalProperties=false；可空 type 用 ["string","null"] 等数组。所有示例必须展示每个 property，包括可选字段，且匹配约束；数组示例至少一项以说明 item 字段。空对象允许 {}。不得只写 DTO 名字或用 SupplierDto[] 代替 schema。所有响应需含完整嵌套结构，统一错误字段也逐接口展开。
+
+bindings 每项只有 id(BIND-01)、page_id、action、api_id、response_status(本 API 已声明 2xx)、request_mapping、response_mapping、loading_behavior、error_behavior、success_behavior。request_mapping 每项 {target,source}：target 如 path.supplierId/query.page/body.supplierId，source 如 SupplierSelect.value/state.page。每个必填请求字段必须被映射。response_mapping 每项 {source,target}：source 如 items[].id 或 batchId，必须是对应响应 schema 中真实字段；target 指明确控件或前端状态。每个公开 API 与每个页面至少有一个绑定，不能写一个笼统 fetch。示例中不同 ID/模块/任务归属仅作结构参考，必须按本次业务调整。
+
+prototype_html 是完整单文件 HTML，内联 CSS/JS，中文、居中紧凑、最大宽约 880px、桌面与 390px 手机不横向溢出。必须有真实可点击控件，使用同轮 API 合法样例的本地 mock 数据模拟交互。默认首屏展示供应商控件、批次状态区、两条示例书目与错误明细入口，便于评审。提供正常同步、加载、空数据、异常与重试的演示；至少有“同步”按钮和模式选择控件。禁止外部脚本/字体/图片/网络请求，不能调用真实 API。逻辑里保留 API ID 和请求/响应字段映射，便于确认与设计一致。运行链路会生成桌面/手机真实截图，先部署 Pages，再把实际 URL 与截图写入 Wiki。不得再写“尚未生成原型”。
+
+下面是完整传输示例，仅展示结构，不是本次业务：
 {
+  "delivery": {
+    "apis": [
+      {
+        "id": "API-01",
+        "module_id": "MOD-01",
+        "task_id": "TASK-01",
+        "method": "POST",
+        "path": "/api/sync",
+        "title": "启动同步",
+        "auth": "仅内网同源演示",
+        "request": {
+          "path": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "query": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "supplierId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "supplierId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "request_example": {
+          "path": {},
+          "query": {},
+          "body": {
+            "supplierId": "gutendex-sim"
+          }
+        },
+        "responses": [
+          {
+            "status": 200,
+            "description": "同步结果",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "successCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "failedCount": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "successCount",
+                "failedCount"
+              ],
+              "additionalProperties": false
+            },
+            "example": {
+              "successCount": 2,
+              "failedCount": 1
+            }
+          },
+          {
+            "status": 502,
+            "description": "供应商错误",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            "example": {
+              "code": "UPSTREAM_UNAVAILABLE",
+              "message": "请重试"
+            }
+          }
+        ]
+      }
+    ],
+    "bindings": [
+      {
+        "id": "BIND-01",
+        "page_id": "UI-01",
+        "action": "同步按钮点击",
+        "api_id": "API-01",
+        "response_status": 200,
+        "request_mapping": [
+          {
+            "target": "body.supplierId",
+            "source": "SupplierSelect.value"
+          }
+        ],
+        "response_mapping": [
+          {
+            "source": "successCount",
+            "target": "Status.successCount"
+          },
+          {
+            "source": "failedCount",
+            "target": "Status.failedCount"
+          }
+        ],
+        "loading_behavior": "禁用按钮",
+        "error_behavior": "显示message并允许重试",
+        "success_behavior": "显示计数"
+      }
+    ],
+    "prototype_html": "<!doctype html><html lang=\"zh-CN\"><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>body{font:16px system-ui;background:#f6f7f6;margin:0;color:#26352f}main{max-width:720px;margin:40px auto;padding:24px}button{padding:10px;border:1px solid #abc;border-radius:8px;background:#e8f0ed;color:#234c3c;cursor:pointer}p{line-height:1.6}h1{font-size:24px}</style></head><body><main><h1>同步管理</h1><p>模拟数据交互原型</p><button id=\"sync\">开始同步</button><p id=\"status\">就绪</p><script>document.querySelector(\"#sync\").onclick=()=>document.querySelector(\"#status\").textContent=\"成功2条，失败1条\";</script></main></body></html>"
+  },
   "schema_version": 2,
   "level": "detailed",
   "summary_markdown": "一版可操作的供应商同步 MVP",
@@ -382,4 +526,4 @@ decisions 严格使用 id/pattern/problem/rationale/alternatives/tradeoffs/imple
   ]
 }
 
-特别注意文档/集成任务的多生产者输入：source="TASK-01/TASK-04 输出"、"TASK-01和TASK-04 输出" 均非法。若任务依赖多个输出，必须拆成多个 inputs，每项source是唯一准确的 TASK-ID.outputName 且type完全匹配。需要汇编成文档或包装对象时在本任务steps中组合，不要把组合后的对象伪称是任一生产者直接输出；文档文件或接口规范也可以来自明确的外部设计基线，不能冒充运行时DTO。
+输入 source 只允许准确的 TASK-01.outputName；多个生产者必须拆成多个独立输入，不使用斜杠或“和”组合来源。
