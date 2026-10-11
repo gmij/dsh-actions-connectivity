@@ -54,6 +54,7 @@ def select_agent(issue, agents, override=""):
     unknown = [label for label in labels if label.startswith("agent:") and label not in {a["label"] for a in agents.values()}]
     if unknown or len(selected) > 1:
         raise ValueError("Use exactly one registered agent:* label")
+    override = override.strip().lower() if isinstance(override, str) else ""
     if override:
         chosen = override
     elif selected:
@@ -64,7 +65,7 @@ def select_agent(issue, agents, override=""):
     if not chosen:
         return None
     if chosen not in agents or not agents[chosen]["enabled"]:
-        raise ValueError("Unknown or disabled agent")
+        raise ValueError(f"Unknown or disabled agent {chosen!r}; enabled IDs: {sorted(k for k, v in agents.items() if v['enabled'])}. For workflow_dispatch set agent=overview.")
     return chosen
 
 
