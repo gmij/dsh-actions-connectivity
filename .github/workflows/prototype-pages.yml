@@ -66,7 +66,7 @@ jobs:
         run: python scripts/prototype_pages.py prepare
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN_ID: ${{ inputs.source_run_id || github.event.workflow_run.id }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id || github.event.workflow_run.id || '38128528526' }}
       - name: Check Pages is enabled with GitHub Actions as source
         if: steps.prepare.outputs.publish == 'true'
         uses: actions/configure-pages@v5
