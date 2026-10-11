@@ -5,12 +5,12 @@
 ## 原生下拉框选择 agent
 
 Issue 右侧 Assign to Agent → Custom agent：
-- Reviewer (Copilot)
-- Connectivity (Copilot)
+- DSH Reviewer
+- DSH Connectivity
 
-两个选项已在 GitHub 页面实际验证可见，无需标签。配置位于 .github/agents/*.agent.md。
-它们由 Copilot Cloud Agent 执行，不启动 DSH；本轮只验证了选项显示，没有运行原生任务。
-参见 [NATIVE-AGENTS.md](NATIVE-AGENTS.md)。“原生指派 → DSH Actions”调度桥接尚未实现。
+配置位于 .github/agents/*.agent.md，无需标签。原生 Copilot 只负责调用 MCP 调度工具，实际任务交给 DSH Actions 执行。
+桥接代码已实现、本地 12 项测试通过；还需配置仓库限定的 Agents 调度凭据，再做原生指派端到端验收。
+当前未宣称原生链路已跑通。配置与验收见 [NATIVE-AGENTS.md](NATIVE-AGENTS.md)。
 
 ## DSH Issue 自动化
 
