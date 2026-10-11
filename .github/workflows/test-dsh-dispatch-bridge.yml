@@ -7,8 +7,6 @@ on:
         required: true
         default: '3'
         type: string
-  push:
-    paths: ['.github/workflows/test-dsh-dispatch-bridge.yml']
 permissions:
   contents: read
 jobs:
