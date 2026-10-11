@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "agents": {
+    "connectivity": {
+      "name": "连通性验证",
+      "description": "验证 DSH 模型接入与 Issue 自动运行链路",
+      "enabled": true,
+      "label": "agent:connectivity",
+      "patch": "agents/connectivity.patch.json",
+      "model": "gpt-5.4-mini",
+      "mode": "analysis"
+    },
+    "reviewer": {
+      "name": "代码审查",
+      "description": "分析 Issue 提供的代码及仓库快照，给出缺陷和修复建议",
+      "enabled": true,
+      "label": "agent:reviewer",
+      "patch": "agents/reviewer.patch.json",
+      "model": "gpt-5.4-mini",
+      "mode": "analysis"
+    }
+  }
+}
