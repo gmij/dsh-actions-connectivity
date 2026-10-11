@@ -1,7 +1,7 @@
 name: Design Wiki
 on:
   workflow_run:
-    workflows: ['Issue DSH agent']
+    workflows: ['Prototype Pages']
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -16,7 +16,7 @@ on:
         type: boolean
   push:
     branches: [main]
-    paths: ['scripts/design_wiki.py', 'scripts/test_design_wiki.py', '.github/workflows/design-wiki.yml']
+    paths: ['scripts/design_wiki.py', 'scripts/design_delivery.py', 'scripts/test_design_wiki.py', '.github/workflows/design-wiki.yml']
 permissions:
   contents: read
 concurrency:
@@ -39,7 +39,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == github.event.repository.default_branch &&
-       (github.event.workflow_run.event == 'issues' || github.event.workflow_run.event == 'workflow_dispatch')) ||
+       github.event.workflow_run.event == 'workflow_run') ||
       (github.event_name == 'push' && contains(github.event.head_commit.message, '[wiki-backfill]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 8
