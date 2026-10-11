@@ -60,3 +60,13 @@ class ScreenshotStorageTests(unittest.TestCase):
         old={'previews/issue-14/runs/99/desktop.png':b'\x89PNG\r\n\x1a\n'}
         result,latest,version=assemble(old,17,100,html)
         self.assertEqual(result['previews/issue-14/runs/99/desktop.png'],old['previews/issue-14/runs/99/desktop.png'])
+
+class DelayedWorkflowTests(unittest.TestCase):
+    def test_delayed_aggregate_requires_every_job_complete_and_successful(self):
+        from unittest.mock import patch
+        from prototype_pages import validate_run
+        run={'id':123,'repository':{'full_name':'o/r'},'path':'.github/workflows/issue-agent.yml','head_branch':'main','event':'issues','status':'in_progress','conclusion':None}
+        jobs=[{'name':n,'status':'completed','conclusion':'success'} for n in ['route','agent','capture','publish']]
+        with patch('prototype_pages.api',return_value={'total_count':4,'jobs':jobs}):validate_run(run,'o/r','main')
+        jobs[2]['status']='in_progress';jobs[2]['conclusion']=None
+        with patch('prototype_pages.api',return_value={'total_count':4,'jobs':jobs}),self.assertRaises(ValueError):validate_run(run,'o/r','main')
