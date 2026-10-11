@@ -67,9 +67,18 @@ def validate_run(run, repo, default_branch):
     if (run.get('repository', {}).get('full_name') != repo or
             run.get('path') != '.github/workflows/issue-agent.yml' or
             run.get('head_branch') != default_branch or
-            run.get('event') not in {'issues', 'workflow_dispatch'} or
-            run.get('conclusion') != 'success'):
-        raise ValueError('Source must be a successful trusted Issue DSH workflow on the default branch')
+            run.get('event') not in {'issues', 'workflow_dispatch'}):
+        raise ValueError('Source must be a trusted Issue DSH workflow on the default branch')
+    if run.get('conclusion') != 'success':
+        # GitHub can lag the aggregate state after all jobs have completed.
+        # Accept only a complete, successful set of trusted jobs; never active or failed jobs.
+        if run.get('conclusion') is not None or run.get('status') != 'in_progress' or type(run.get('id')) is not int:
+            raise ValueError('Source workflow did not succeed')
+        batch=api('GET',f'/repos/{repo}/actions/runs/{run["id"]}/jobs?filter=latest&per_page=100')
+        jobs=batch.get('jobs',[]); by_name={j['name']:j for j in jobs}
+        if batch.get('total_count',0)>100 or not jobs or any(j.get('status')!='completed' or j.get('conclusion') not in {'success','skipped'} for j in jobs) or any(by_name.get(n,{}).get('conclusion')!='success' for n in ['route','agent','capture','publish']):
+            raise ValueError('Source jobs are not all completed successfully')
+        print('Source verified from completed route/agent/capture/publish jobs; GitHub aggregate status is delayed.')
 
 
 def validate_html(html):
