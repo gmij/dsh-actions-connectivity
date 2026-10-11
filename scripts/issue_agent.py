@@ -183,7 +183,9 @@ def route():
     key = fingerprint(issue, chosen, config, patch)
     marker = f"<!-- dsh-agent:{key} -->"
     # workflow_dispatch boolean inputs may be JSON booleans (true/false), not only strings.
-    force = manual and force_input_enabled(event.get("inputs", {}).get("force", False))
+    # A manual workflow_dispatch is an explicit operator-requested retry.
+    # Deduplicate event-driven routes only; do not silently mark a manual run successful.
+    force = manual
     previous = next((c for c in comments(repo, number) if marker in c["body"] and c["user"]["login"] == "github-actions[bot]"), None)
     if previous and not force:
         output(run="false")
