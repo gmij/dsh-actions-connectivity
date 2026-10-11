@@ -8,9 +8,9 @@ TASK = {'id', 'title', 'goal', 'depends_on', 'inputs', 'outputs', 'steps', 'fail
 DECISION = {'id', 'pattern', 'problem', 'rationale', 'alternatives', 'tradeoffs', 'implementation', 'tasks'}
 
 
-def text(value):
-    if not isinstance(value, str) or not value.strip() or len(value) > 15000:
-        raise ValueError('Required design text is missing or too long')
+def text(value, max_length=15000):
+    if not isinstance(value, str) or not value.strip() or len(value) > max_length:
+        raise ValueError(f'Required design text is missing or exceeds {max_length} characters')
     return value
 
 
@@ -24,7 +24,7 @@ def strings(values, required=True):
 def validate(data, level):
     if not isinstance(data, dict) or set(data) != {'level', 'summary_markdown', 'design_markdown', 'decisions', 'tasks'} or data['level'] != level or level not in {'overview', 'detailed'}:
         raise ValueError('Invalid design output contract')
-    text(data['summary_markdown']); text(data['design_markdown'])
+    text(data['summary_markdown']); text(data['design_markdown'], max_length=100000)
     tasks = data['tasks']
     if not isinstance(tasks, list) or not 1 <= len(tasks) <= 30:
         raise ValueError('Expected 1 to 30 bounded tasks')
