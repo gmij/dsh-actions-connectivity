@@ -18,6 +18,15 @@
       "patch": "agents/reviewer.patch.json",
       "model": "gpt-5.4-mini",
       "mode": "analysis"
+    },
+    "prototype": {
+      "name": "原型设计",
+      "description": "判断原型必要性，完成需求分析并交付极简交互原型",
+      "enabled": true,
+      "label": "agent:prototype",
+      "patch": "agents/prototype.patch.json",
+      "model": "gpt-5.4-mini",
+      "mode": "prototype"
     }
   }
 }
