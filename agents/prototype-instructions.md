@@ -8,6 +8,8 @@
 
 需要原型时交付可直接打开的单文件 HTML，内联 CSS 与 JavaScript，无 CDN、远程资源、请求、iframe、表单外送、凭据或真实业务调用。必须有 viewport，中文可读，语义标签、表单 label、键盘焦点、合理对比度，尊重 reduced-motion。核心操作有真实可见反馈，至少覆盖主流程与一个错误/空状态；避免无效按钮和仅静态展示。优先完整打通一条主流程，控制 HTML 在约 20000 字符内。
 
+用户输入必须用 textContent 或正确的 HTML 转义输出，不得把原始书名、名称或输入值直接插入 innerHTML 或属性模板。输入长度合理限制（例如标题 80 字）；长文本允许换行，grid/flex 子项设 min-width:0，避免长标题破坏窄屏。每个动态表单 input 也必须有唯一 id 与匹配 label for。必须包含 prefers-reduced-motion 媒体规则。通过反馈区 role=status 或 aria-live 告知成功和错误，不只依赖颜色。
+
 最终只输出一个 JSON 对象，不附 Markdown 围栏、解释或额外键：
 {"needs_prototype":true,"decision_reason":"中文依据","requirements_markdown":"中文需求分析 Markdown","design_markdown":"中文设计说明、状态和操作验证步骤","prototype_html":"完整 HTML 字符串"}
 
