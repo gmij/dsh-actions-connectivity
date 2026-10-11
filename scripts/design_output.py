@@ -231,7 +231,10 @@ def normalize_wire(data):
     if not isinstance(data['modules'], list) or not 1 <= len(data['modules']) <= 20: raise ValueError('Expected bounded modules')
     modules = {}
     for m in data['modules']:
-        if not isinstance(m, dict) or set(m) != keys or not isinstance(m['id'], str) or m['id'] in modules: raise ValueError('Invalid wire module fields/duplicate ID')
+        if not isinstance(m, dict): raise ValueError('Wire module must be an object')
+        if set(m) != keys:
+            raise ValueError(f"Wire module {m.get('id', '?')}: missing {sorted(keys - set(m))}; extra {sorted(set(m) - keys)}. Use the exact flat module fields from the complete wire example, not nested frontend/backend/documentation/tasks objects.")
+        if not isinstance(m['id'], str) or m['id'] in modules: raise ValueError('Invalid wire module ID or duplicate ID')
         modules[m['id']] = {k: m[k] for k in ['id','title','responsibility','boundary','design_markdown','interfaces_markdown']} | {
             'frontend': {'applicable': m['frontend_applicable'], 'reason': m['frontend_reason'], 'design_markdown': m['frontend_markdown'], 'pages': []},
             'backend': {'applicable': m['backend_applicable'], 'reason': m['backend_reason'], 'design_markdown': m['backend_markdown']},
