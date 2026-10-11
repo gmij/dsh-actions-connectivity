@@ -1,0 +1,41 @@
+name: Test DSH dispatch bridge
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Test Issue number
+        required: true
+        default: '3'
+        type: string
+  push:
+    paths: ['.github/workflows/test-dsh-dispatch-bridge.yml']
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate bridge and existing router
+        run: python -m unittest discover -s scripts -p 'test_*.py'
+      - name: Invoke actual MCP tool with temporary Actions token
+        env:
+          DSH_DISPATCH_TOKEN: ${{ github.token }}
+          DSH_AGENT_ID: connectivity
+          TEST_ISSUE: ${{ inputs.issue_number || '3' }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          message = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "dispatch_issue", "arguments": {"issue_number": int(os.environ["TEST_ISSUE"])}}}
+          process = subprocess.run(["python", "scripts/dsh_dispatch_mcp.py"], input=json.dumps(message) + "\n", text=True, capture_output=True, check=True)
+          response = json.loads(process.stdout)
+          print(json.dumps(response, ensure_ascii=False))
+          assert not response["result"].get("isError"), "MCP dispatch did not succeed"
+          PY
