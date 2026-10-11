@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from staged_design import generate_staged, stage_prompt
+from staged_design import generate_staged, stage_prompt, parse_stage_json
 
 
 class StagedDesignTests(unittest.TestCase):
@@ -33,6 +33,14 @@ class StagedDesignTests(unittest.TestCase):
                                                 lambda *_: self.fail('unnecessary model call')))
             self.assertEqual(again, merged)
             self.assertTrue(Path(directory, 'stage-core.json').exists())
+
+    def test_json_code_fence(self):
+        self.assertEqual(parse_stage_json('```json\\n{"core":true}\\n```'), {'core': True})
+        self.assertEqual(parse_stage_json('```JSON\\r\\n{"core":true}\\r\\n```'), {'core': True})
+        self.assertEqual(parse_stage_json(' {"core":true} '), {'core': True})
+        for value in ('before\\n```json\\n{}\\n```', '```json\\n{}', '```json\\n{}\\n```\\nafter'):
+            with self.assertRaises(json.JSONDecodeError):
+                parse_stage_json(value)
 
     def test_invalid_stage_does_not_advance(self):
         with tempfile.TemporaryDirectory() as directory:
