@@ -70,6 +70,6 @@ DSH 引擎使用 registry 中的模型，当前为 GitHub Copilot API 的 `gpt-5
 
 HTML 长期保存在独立的 `prototype-previews` 分支，持续部署时保留其他 Issue 与历史版本，不受 Actions 交付包 30 天保留期影响。旧运行重新补发不会把最新版本倒退。删除分支、站点或仓库会影响可用性；首次补发仍需源交付包未过期。
 
-发布器只接收本仓库默认分支上成功的 `issue-agent.yml`（issues / workflow_dispatch），拒绝 PR/其他工作流来源。不执行模型 HTML，只发布固定路径的 HTML 与索引；需求文档、日志、提示词、Issue 正文和密钥不会包含在 Pages 发布目录。无需原型、未分派及其他角色任务跳过发布。所有 Issue 的归档和部署串行执行。部署或权限失败时可修复后重新运行 Prototype Pages，已有原型交付包仍可下载。
+发布器只接收本仓库默认分支上成功的 `issue-agent.yml`（issues / workflow_dispatch），拒绝 PR/其他工作流来源。不执行模型 HTML，只发布固定路径的 HTML 与索引；需求文档、日志、提示词、Issue 正文和密钥不会包含在 Pages 发布目录。无需原型、未分派及其他角色任务跳过发布。所有 Issue 的归档和部署串行执行，使用 queue: max 保留最多 100 个等待运行，超出平台上限的任务可手动补发。部署或权限失败时可修复后重新运行 Prototype Pages，已有原型交付包仍可下载。
 
-本次发布器新增 7 项测试，总计 22 项测试通过；在线部署需完成 Pages 设置后验收。
+本次发布器新增 7 项测试，总计 22 项测试已在 GitHub Actions 通过（运行 38111751581）。已用 Issue #14 的真实 DSH 交付包补发测试（运行 38111834848），来源校验、HTML 读取和独立分支归档成功；Pages 配置检查返回 Not Found，说明当前站点尚未启用。完成首次 Pages 设置后重新运行该发布工作流，即可继续部署并自动回填 Issue 链接；在线页面尚未验收。
