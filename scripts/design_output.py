@@ -103,13 +103,15 @@ def validate(data, level):
         strings(decision['tasks'])
         if any(identifier not in indexed for identifier in decision['tasks']):
             raise ValueError('Decision references unknown task')
-        if any(decision['id'] not in indexed[identifier]['patterns'] for identifier in decision['tasks']):
-            raise ValueError('Pattern decision and task mapping must agree')
+        missing = [identifier for identifier in decision['tasks'] if decision['id'] not in indexed[identifier]['patterns']]
+        if missing:
+            raise ValueError(f"Decision {decision['id']} lists tasks {decision['tasks']} but {missing} lack {decision['id']} in their patterns arrays; add the ID to those task.patterns or remove genuinely unused tasks from decision.tasks")
     for task in tasks:
         if any(identifier not in decision_ids for identifier in task['patterns']):
             raise ValueError('Task references unknown pattern decision')
-        if any(task['id'] not in next(d for d in decisions if d['id'] == identifier)['tasks'] for identifier in task['patterns']):
-            raise ValueError('Pattern decision must name all using tasks')
+        missing = [identifier for identifier in task['patterns'] if task['id'] not in next(d for d in decisions if d['id'] == identifier)['tasks']]
+        if missing:
+            raise ValueError(f"Task {task['id']} uses decisions {missing} but those decision.tasks arrays omit {task['id']}; repair the reciprocal task mapping")
     return data
 
 
