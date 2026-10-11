@@ -177,7 +177,9 @@ def route():
     patch = (ROOT / config["patch"]).read_text()
     key = fingerprint(issue, chosen, config, patch)
     marker = f"<!-- dsh-agent:{key} -->"
-    force = manual and event.get("inputs", {}).get("force", "false") == "true"
+    # workflow_dispatch boolean inputs may be JSON booleans (true/false), not only strings.
+    raw_force = event.get("inputs", {}).get("force", False)
+    force = manual and (raw_force is True or isinstance(raw_force, str) and raw_force.lower() == "true")
     previous = next((c for c in comments(repo, number) if marker in c["body"] and c["user"]["login"] == "github-actions[bot]"), None)
     if previous and not force:
         output(run="false")
