@@ -36,7 +36,8 @@
       "patch": "agents/overview.patch.json",
       "model": "claude-haiku-5.5",
       "mode": "design",
-      "design_level": "overview"
+      "design_level": "overview",
+      "api": "anthropic-messages"
     },
     "detailed": {
       "name": "详细设计",
@@ -46,7 +47,8 @@
       "patch": "agents/detailed.patch.json",
       "model": "claude-haiku-5.5",
       "mode": "design",
-      "design_level": "detailed"
+      "design_level": "detailed",
+      "api": "anthropic-messages"
     }
   }
 }
