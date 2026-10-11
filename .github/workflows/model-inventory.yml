@@ -1,0 +1,40 @@
+name: Copilot model inventory
+on:
+  push:
+    paths: ['.github/workflows/model-inventory.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  copilot-requests: write
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix "$RUNNER_TEMP/inventory" --no-audit --no-fund @github/copilot-sdk@1.0.19 @github/copilot
+      - name: List model IDs without inference
+        timeout-minutes: 2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/inventory/models.mjs" <<'JS'
+          import { CopilotClient } from '@github/copilot-sdk';
+          const client = new CopilotClient({
+            cliPath: process.env.RUNNER_TEMP + '/inventory/node_modules/.bin/copilot',
+            gitHubToken: process.env.GITHUB_TOKEN,
+            useLoggedInUser: false
+          });
+          try {
+            await client.start();
+            const models = await client.listModels();
+            console.log(JSON.stringify(models.map(m => ({id:m.id, name:m.name})), null, 2));
+            console.log('DeepSeek candidates:', JSON.stringify(models.filter(m => /deepseek/i.test(m.id + ' ' + m.name)).map(m => ({id:m.id, name:m.name}))));
+          } finally {
+            await client.stop();
+          }
+          JS
+          node "$RUNNER_TEMP/inventory/models.mjs"
