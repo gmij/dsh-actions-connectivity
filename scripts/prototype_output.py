@@ -4,7 +4,7 @@ import re
 
 POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; base-uri 'none'; object-src 'none';"
 CSP = '<meta http-equiv="Content-Security-Policy" content="' + POLICY + '">'
-LEGACY_CSP = '<meta http-equiv="Content-Security-Policy" content="' + POLICY.replace("'", '&#39;') + '">'
+LEGACY_CSP = '<meta http-equiv="Content-Security-Policy" content="' + POLICY.removesuffix(';').replace("'", '&#39;') + '">'
 
 
 def write_bundle(raw, destination):
