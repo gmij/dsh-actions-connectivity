@@ -1,0 +1,107 @@
+name: Prototype Pages
+run-name: Prototype Pages · DSH run ${{ inputs.source_run_id || github.event.workflow_run.id || github.run_id }}
+
+on:
+  workflow_run:
+    workflows: [Issue DSH agent]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful Issue DSH run ID (existing prototypes can be published without rerunning the model)
+        required: true
+        default: '38110990668'
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/prototype-pages.yml
+      - scripts/prototype_pages.py
+      - scripts/test_prototype_pages.py
+
+permissions:
+  contents: read
+
+# Serialize the complete archive/build/deploy sequence across all Issues.
+concurrency:
+  group: prototype-pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s scripts -p 'test_*.py'
+
+  build:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'issues' || github.event.workflow_run.event == 'workflow_dispatch'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      actions: read
+      pages: read
+    outputs:
+      publish: ${{ steps.prepare.outputs.publish }}
+      issue_number: ${{ steps.prepare.outputs.issue_number }}
+      source_run_id: ${{ inputs.source_run_id || github.event.workflow_run.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate source artifacts and preserve HTML previews
+        id: prepare
+        run: python scripts/prototype_pages.py prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id || github.event.workflow_run.id }}
+      - name: Check Pages is enabled with GitHub Actions as source
+        if: steps.prepare.outputs.publish == 'true'
+        uses: actions/configure-pages@v5
+      - name: Upload only the static preview site
+        if: steps.prepare.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/prototype-site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      issues: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy interactive prototypes
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Add verified online preview links to the Issue
+        run: python scripts/prototype_pages.py notify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ needs.build.outputs.issue_number }}
+          SOURCE_RUN_ID: ${{ needs.build.outputs.source_run_id }}
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
