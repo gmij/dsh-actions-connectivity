@@ -6,12 +6,19 @@ import urllib.request
 import zipfile
 from unittest.mock import patch
 
-from prototype_pages import SafeRedirect, assemble, member, prepare, validate_run
+from prototype_pages import SafeRedirect, assemble, member, page_base, prepare, validate_run
 
 HTML = '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="connect-src &#39;none&#39;"></head><body>demo</body></html>'
 
 
 class PagesTests(unittest.TestCase):
+    def test_accepts_official_deployment_custom_domain(self):
+        self.assertEqual(page_base('http://gmij.win/dsh-actions-connectivity/'), 'http://gmij.win/dsh-actions-connectivity/')
+        self.assertEqual(page_base('https://gmij.github.io/dsh-actions-connectivity'), 'https://gmij.github.io/dsh-actions-connectivity/')
+        for url in ['javascript:alert(1)', 'https://user:secret@gmij.win/', 'https://gmij.win/?token=secret', 'https://gmij.win/#x', 'https://gmij.win/\nmalicious']:
+            with self.assertRaises(ValueError):
+                page_base(url)
+
     def test_preserves_other_issues_and_versions(self):
         first, _, _ = assemble({}, 14, 101, HTML)
         second, latest, version = assemble(first, 16, 102, HTML)
