@@ -55,6 +55,8 @@ class MvpWikiTests(unittest.TestCase):
         self.assertEqual(fixed, {k:v for k,v in pages.items() if '-Run-100' in k})
         self.assertIn('](Issue-17-Detailed-Milestones)', pages['Issue-17-Detailed.md'])
         self.assertIn('界面与交互', pages['_Sidebar.md'])
+        self.assertLess(pages['_Sidebar.md'].index('MVP 里程碑'), pages['_Sidebar.md'].index('MOD-01'))
+        self.assertLess(pages['_Sidebar.md'].index('MOD-02'), pages['_Sidebar.md'].index('任务索引与契约'))
         self.assertIn('SyncApiContract', pages['Issue-17-Detailed-MOD-02.md'])
         self.assertIn('发布门槛', pages['Issue-17-Detailed-Milestones.md'])
         again, _ = assemble(pages, state, REPO, 17, 100, 'detailed', json.dumps(example()))
