@@ -40,7 +40,7 @@ def schema_check(schema, example, where='schema', depth=0):
             # Require an example for every field, including optional fields, to validate all nested schema declarations.
             if set(props)-set(example): fail(where+': example must demonstrate every property')
             for k,v in props.items(): schema_check(v,example[k],where+'.'+k,depth+1)
-        elif example is None and props: fail(where+': object example must demonstrate fields')
+        elif example is None and props and 'null' not in types: fail(where+': object example must demonstrate fields')
     if 'array' in types:
         if 'items' not in schema: fail(where+': array items type required')
         if isinstance(example,list):
