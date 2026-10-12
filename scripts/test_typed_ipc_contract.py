@@ -1,6 +1,6 @@
 import copy
 import unittest
-from design_delivery import validate_delivery
+from design_delivery import validate_delivery, schema_check
 
 OBJ=lambda p: {"type":"object","properties":{p:{"type":"string"}},"required":[p],"additionalProperties":False}
 def fixture():
@@ -13,6 +13,29 @@ def fixture():
     return {"experience":{"interaction_mode":"web"},"modules":[{"id":"MOD-01",
       "tasks":[{"id":"TASK-01","layer":"backend"}],"frontend":{"pages":[{"id":"UI-01"}]}}],
       "delivery":{"apis":[],"bindings":[],"channels":[channel],"prototype_html":"<!doctype html><html><head></head><body>"+"x"*550+"</body></html>"}}
+
+class NullableObjectSchemaTests(unittest.TestCase):
+    def test_nullable_object_with_null_example(self):
+        schema = {'type': ['object', 'null'], 'properties': {
+            'code': {'type': 'string'}},
+            'required': ['code'], 'additionalProperties': False}
+        schema_check(schema, None, 'IPC-07.response.error')
+        schema_check(schema, {'code': 'DISCONNECTED'}, 'IPC-07.response.error')
+
+    def test_null_rejected_when_not_nullable(self):
+        schema = {'type': 'object', 'properties': {
+            'code': {'type': 'string'}},
+            'required': ['code'], 'additionalProperties': False}
+        with self.assertRaises(ValueError):
+            schema_check(schema, None, 'IPC-07.response.error')
+
+    def test_invalid_non_null_object_still_rejected(self):
+        schema = {'type': ['object', 'null'], 'properties': {
+            'code': {'type': 'string'}},
+            'required': ['code'], 'additionalProperties': False}
+        with self.assertRaises(ValueError):
+            schema_check(schema, {}, 'IPC-07.response.error')
+
 
 class TypedChannelTests(unittest.TestCase):
     def test_non_http_ipc_contract_passes(self):
