@@ -38,6 +38,10 @@ class DeliveryTests(unittest.TestCase):
         from design_output import write_bundle
         with tempfile.TemporaryDirectory() as f:
             dest=Path(f)/'design';write_bundle(json.dumps(self.data()),dest,'detailed',True)
+            module=(dest/'modules/MOD-01.md').read_text()
+            self.assertIn('(../apis/API-01.md)', module)
+            self.assertIn('(../api-contracts.md)', module)
+            self.assertIn('(../frontend-bindings.md)', module)
             s=(dest/'apis/API-01.md').read_text();self.assertIn('## 响应 200',s);self.assertIn('## 响应 502',s);self.assertIn('supplierId',s)
             self.assertIn('body.supplierId',(dest/'frontend-bindings.md').read_text());self.assertTrue((dest.parent/'prototype/index.html').exists())
 
@@ -50,6 +54,8 @@ class WikiDeliveryTests(unittest.TestCase):
         self.assertIn('![桌面界面]('+preview+'desktop.png)',result['Issue-17-Detailed-UI.md'])
         self.assertIn('Issue-17-Detailed-API-01',result['Issue-17-Detailed-APIs.md'])
         self.assertIn('Issue-17-Detailed-APIs',result['_Sidebar.md'])
+        self.assertIn('Issue-17-Detailed-IPC',result['_Sidebar.md'])
+        self.assertIn('Issue-17-Detailed-API-01',result['Issue-17-Detailed-MOD-01.md'])
         self.assertIn('body.supplierId',result['Issue-17-Detailed-Bindings.md'])
 
 class ScreenshotStorageTests(unittest.TestCase):
