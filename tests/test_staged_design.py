@@ -97,6 +97,23 @@ class StagedDesignTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'targeted repair required'):
             verify_task_source_types(doc)
 
+    def test_bidirectional_decision_task_references_are_reconciled(self):
+        from staged_design import verify_task_source_types
+        doc={'decisions':[{'id':'DEC-01','tasks':['TASK-02','TASK-03']}],
+             'task_records':[{'id':'TASK-02','inputs':[],'patterns':['DEC-01']},
+                             {'id':'TASK-03','inputs':[],'patterns':[]},
+                             {'id':'TASK-07','inputs':[],'patterns':['DEC-01']}]}
+        with tempfile.TemporaryDirectory() as root:
+            result=verify_task_source_types(doc,root)
+            self.assertEqual(len(result),2)
+            self.assertEqual(doc['task_records'][1]['patterns'],['DEC-01'])
+            self.assertIn('TASK-07',doc['decisions'][0]['tasks'])
+            self.assertEqual(verify_task_source_types(doc,root),[])
+        bad={'decisions':[{'id':'DEC-01','tasks':['TASK-99']}],
+             'task_records':[{'id':'TASK-01','inputs':[],'patterns':[]}]}
+        with self.assertRaisesRegex(ValueError,'unknown task'):
+            verify_task_source_types(bad)
+
     def test_json_code_fence(self):
         self.assertEqual(parse_stage_json('```json\n{"core":true}\n```'), {'core': True})
         self.assertEqual(parse_stage_json('```JSON\r\n{"core":true}\r\n```'), {'core': True})
