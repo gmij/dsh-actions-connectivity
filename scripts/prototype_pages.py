@@ -65,7 +65,7 @@ def positive(value):
 
 def validate_run(run, repo, default_branch):
     if (run.get('repository', {}).get('full_name') != repo or
-            run.get('path') != '.github/workflows/issue-agent.yml' or
+            run.get('path') not in {'.github/workflows/issue-agent.yml', '.github/workflows/dsh-issue-agent.yml'} or
             run.get('head_branch') != default_branch or
             run.get('event') not in {'issues', 'workflow_dispatch'}):
         raise ValueError('Source must be a trusted Issue DSH workflow on the default branch')
