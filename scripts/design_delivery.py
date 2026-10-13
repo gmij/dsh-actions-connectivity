@@ -57,6 +57,44 @@ def field_schema(schema,path):
     return schema
 
 
+def validate_ipc_channel(c, modules, tasks, pages):
+    """Validate one IPC contract independently, with the same rules as final delivery."""
+    channel_pages=set()
+    keys={'id','module_id','task_id','transport','command','request','request_example','response','response_example','error','error_example','bindings'}
+    if not isinstance(c,dict) or set(c)!=keys or not isinstance(c['id'],str) or not re.fullmatch(r'IPC-\d{2,3}',c['id']): fail('typed IPC identity/fields invalid')
+    if c['transport'] not in {'vscode-webview','vscode-command','acp','process-stdio','ipc'}: fail(c['id']+': unsupported IPC transport')
+    if not isinstance(c['command'],str) or not c['command'].strip(): fail(c['id']+': command/event name required')
+    if c['module_id'] not in modules or c['task_id'] not in tasks or tasks[c['task_id']][0]!=c['module_id']: fail(c['id']+': channel owner task/module invalid')
+    for field in ('request','response','error'):
+        schema_check(c[field],c[field+'_example'],c['id']+'.'+field)
+    if not isinstance(c['bindings'],list) or not c['bindings']: fail(c['id']+': page/action bindings required')
+    for b in c['bindings']:
+        keys={'page_id','action','request_mapping','response_mapping','loading_behavior','error_behavior','success_behavior'}
+        if not isinstance(b,dict) or set(b)!=keys or b['page_id'] not in pages: fail(c['id']+': page/action binding invalid')
+        if not isinstance(b['request_mapping'],list) or not isinstance(b['response_mapping'],list) or not b['response_mapping']: fail(c['id']+': field mapping required')
+        for mapping in b['request_mapping']:
+            if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['source'],str) or not mapping['source'].strip(): fail('IPC request mapping fields invalid')
+            field_schema(c['request'],mapping['target'])
+        # A one-way host -> Webview event has no response/ACK. Its UI
+        # bindings consume the notification envelope (request payload),
+        # not the null response. This is not a model schema failure.
+        notification = (c['transport'] == 'vscode-webview'
+                        and c['response'].get('type') == 'null'
+                        and c['response_example'] is None)
+        for mapping in b['response_mapping']:
+            if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['target'],str) or not mapping['target'].strip(): fail(c['id']+': IPC response mapping fields invalid')
+            source_schema = c['request'] if notification else c['response']
+            try:
+                field_schema(source_schema,mapping['source'])
+            except ValueError as exc:
+                origin = 'notification.request' if notification else 'response'
+                fail(f"{c['id']} / {b['page_id']} / {b['action']}: invalid {origin} mapping source {mapping['source']!r} -> {mapping['target']!r}; {exc}")
+        for field in ('action','loading_behavior','error_behavior','success_behavior'):
+            if not isinstance(b[field],str) or not b[field].strip(): fail('IPC binding behavior required')
+        channel_pages.add(b['page_id'])
+    return channel_pages
+
+
 def validate_delivery(data, required=False):
     delivery=data.get('delivery')
     if delivery is None:
@@ -109,38 +147,8 @@ def validate_delivery(data, required=False):
     if used!=set(ids): fail('every public HTTP API must have bindings')
     channel_ids=set(); channel_pages=set()
     for c in channels:
-        keys={'id','module_id','task_id','transport','command','request','request_example','response','response_example','error','error_example','bindings'}
-        if not isinstance(c,dict) or set(c)!=keys or not isinstance(c['id'],str) or not re.fullmatch(r'IPC-\d{2,3}',c['id']) or c['id'] in channel_ids: fail('typed IPC identity/fields invalid')
-        if c['transport'] not in {'vscode-webview','vscode-command','acp','process-stdio','ipc'}: fail(c['id']+': unsupported IPC transport')
-        if not isinstance(c['command'],str) or not c['command'].strip(): fail(c['id']+': command/event name required')
-        if c['module_id'] not in modules or c['task_id'] not in tasks or tasks[c['task_id']][0]!=c['module_id']: fail(c['id']+': channel owner task/module invalid')
-        for field in ('request','response','error'):
-            schema_check(c[field],c[field+'_example'],c['id']+'.'+field)
-        if not isinstance(c['bindings'],list) or not c['bindings']: fail(c['id']+': page/action bindings required')
-        for b in c['bindings']:
-            keys={'page_id','action','request_mapping','response_mapping','loading_behavior','error_behavior','success_behavior'}
-            if not isinstance(b,dict) or set(b)!=keys or b['page_id'] not in pages: fail(c['id']+': page/action binding invalid')
-            if not isinstance(b['request_mapping'],list) or not isinstance(b['response_mapping'],list) or not b['response_mapping']: fail(c['id']+': field mapping required')
-            for mapping in b['request_mapping']:
-                if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['source'],str) or not mapping['source'].strip(): fail('IPC request mapping fields invalid')
-                field_schema(c['request'],mapping['target'])
-            # A one-way host -> Webview event has no response/ACK. Its UI
-            # bindings consume the notification envelope (request payload),
-            # not the null response. This is not a model schema failure.
-            notification = (c['transport'] == 'vscode-webview'
-                            and c['response'].get('type') == 'null'
-                            and c['response_example'] is None)
-            for mapping in b['response_mapping']:
-                if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['target'],str) or not mapping['target'].strip(): fail(c['id']+': IPC response mapping fields invalid')
-                source_schema = c['request'] if notification else c['response']
-                try:
-                    field_schema(source_schema,mapping['source'])
-                except ValueError as exc:
-                    origin = 'notification.request' if notification else 'response'
-                    fail(f"{c['id']} / {b['page_id']} / {b['action']}: invalid {origin} mapping source {mapping['source']!r} -> {mapping['target']!r}; {exc}")
-            for field in ('action','loading_behavior','error_behavior','success_behavior'):
-                if not isinstance(b[field],str) or not b[field].strip(): fail('IPC binding behavior required')
-            channel_pages.add(b['page_id'])
+        if isinstance(c,dict) and c.get('id') in channel_ids: fail('duplicate IPC identity '+str(c['id']))
+        channel_pages.update(validate_ipc_channel(c,modules,tasks,pages))
         channel_ids.add(c['id'])
     if bound_pages | channel_pages != pages: fail('every page must be bound to HTTP or typed IPC')
     if not isinstance(delivery['prototype_html'],str) or len(delivery['prototype_html'])<500: fail('complete offline HTML prototype required')
