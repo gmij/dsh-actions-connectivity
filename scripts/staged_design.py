@@ -55,7 +55,10 @@ def stage_prompt(original, name, keys, completed, level):
                     "transport 字段只能是以下五个固定英文枚举之一：vscode-webview、vscode-command、acp、process-stdio、ipc。"
                     "不能在 transport 中写中文说明、协议推测或组合选择；无法证明更具体协议时选 ipc。"
                     "例如：{\"id\":\"IPC-01\",\"transport\":\"ipc\",\"command\":\"SessionBridge.open\",...}。"
-                    "对于 Host→Webview 单向事件：request 为推送事件信封，response 和 error 可为 type=null、示例 null；"\n                    "bindings.response_mapping 的 source 应指向 request 中真实事件字段（如 sequence/payload.textDelta），"\n                    "因为通知没有响应消息。普通有响应通道的 response_mapping.source 才指向 response schema。"\n                    "禁止把 UI 消费的推送事件字段虚构到 null response 中。",
+                    "对于 Host→Webview 单向事件：request 为推送事件信封，response 和 error 可为 type=null、示例 null；"
+                    "bindings.response_mapping 的 source 应指向 request 中真实事件字段（如 sequence/payload.textDelta），"
+                    "因为通知没有响应消息。普通有响应通道的 response_mapping.source 才指向 response schema。"
+                    "禁止把 UI 消费的推送事件字段虚构到 null response 中。",
                     "非 HTTP 交互必须在这里定义，不得用空 channels 掩盖缺失契约。",
         "prototype": "仅输出 prototype_html 字符串，必要时生成可本地运行的离线交互 HTML。"
                      "不要把 HTML 和 API Schema 放在一个 JSON 回复里。"
