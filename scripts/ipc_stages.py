@@ -51,6 +51,27 @@ def validate_index(items,done):
     if covered!=pages:
         raise ValueError(f"IPC index: unmapped pages {sorted(pages-covered)}, extra {sorted(covered-pages)}")
 
+def normalize_notification_paths(channel):
+    """Strip a redundant request. prefix only for fields proven in request schema."""
+    if not isinstance(channel, dict) or channel.get("transport") != "vscode-webview":
+        return channel
+    if channel.get("response") != {"type": "null"} or channel.get("response_example", "missing") is not None:
+        return channel
+    from design_delivery import field_schema
+    for binding in channel.get("bindings", []):
+        for mapping in binding.get("response_mapping", []):
+            source = mapping.get("source")
+            if not isinstance(source, str) or not source.startswith("request."):
+                continue
+            relative = source[len("request."):]
+            try:
+                field_schema(channel["request"], relative)
+            except (ValueError, TypeError, KeyError):
+                continue
+            mapping["source"] = relative
+    return channel
+
+
 def validate_one(channel, spec, done):
     if not isinstance(channel,dict):
         raise ValueError(f"{spec['id']}: channel must be an object")
@@ -136,6 +157,7 @@ def generate_channels(original,done,out_dir,invoke):
                 try:
                     if not isinstance(fragment,dict) or set(fragment)!={"channel"}:
                         raise ValueError("Expected only channel object")
+                    normalize_notification_paths(fragment["channel"])
                     validate_one(fragment["channel"],spec,done)
                 except (ValueError,KeyError,TypeError) as ex:
                     problem=str(ex)
@@ -148,6 +170,7 @@ def generate_channels(original,done,out_dir,invoke):
                 fragment=parse(invoke(repair,"channels-"+spec["id"]+"-repair"))
         if not isinstance(fragment,dict) or set(fragment)!={"channel"}:
             raise ValueError(f"{spec['id']}: invalid channel envelope")
+        normalize_notification_paths(fragment["channel"])
         validate_one(fragment["channel"],spec,done)
         if not reused:
             filename.write_text(json.dumps(fragment,ensure_ascii=False,indent=2))
