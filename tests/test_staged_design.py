@@ -34,6 +34,33 @@ class StagedDesignTests(unittest.TestCase):
             self.assertEqual(again, merged)
             self.assertTrue(Path(directory, 'stage-core.json').exists())
 
+    def test_do_not_fake_http_request_for_notification_or_cancel_ipc(self):
+        from staged_design import remove_duplicate_ipc_http_bindings
+        original={
+          'apis':[{'id':'API-02'}],
+          'channels':[
+            {'id':'IPC-03','command':'session.update','bindings':[{'page_id':'UI-01'}]},
+            {'id':'IPC-05','command':'chat.cancel','bindings':[{'page_id':'UI-01'}]}],
+          'bindings':[
+            {'id':'BIND-03','api_id':'API-02','page_id':'UI-01','action':'点击发送按钮'},
+            {'id':'BIND-04','api_id':'API-02','page_id':'UI-01','action':'收到 session/update 推送并渲染助手消息'},
+            {'id':'BIND-06','api_id':'API-02','page_id':'UI-01','action':'点击取消按钮（IPC-05，本阶段无 HTTP，仅 Host 内部消息）'}]}
+        remove_duplicate_ipc_http_bindings(original)
+        self.assertEqual([x['id'] for x in original['bindings']],['BIND-03'])
+        again=dict(original)
+        remove_duplicate_ipc_http_bindings(again)
+        self.assertEqual(again,original)
+
+    def test_real_http_missing_request_field_is_not_auto_hidden(self):
+        from staged_design import remove_duplicate_ipc_http_bindings
+        doc={'apis':[{'id':'API-02'}],
+             'channels':[{'id':'IPC-03','command':'session.update',
+                          'bindings':[{'page_id':'UI-02'}]}],
+             'bindings':[{'id':'BIND-04','api_id':'API-02','page_id':'UI-01',
+                          'action':'收到 session/update 推送并渲染助手消息'}]}
+        remove_duplicate_ipc_http_bindings(doc)
+        self.assertEqual(len(doc['bindings']),1)
+
     def test_json_code_fence(self):
         self.assertEqual(parse_stage_json('```json\n{"core":true}\n```'), {'core': True})
         self.assertEqual(parse_stage_json('```JSON\r\n{"core":true}\r\n```'), {'core': True})
