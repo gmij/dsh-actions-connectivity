@@ -176,7 +176,7 @@ def verify_task_source_types(assembled, out=None):
             source=item.get("source","")
             if not isinstance(source,str) or not source.startswith("TASK-"):
                 continue
-            match=re.fullmatch(r"(TASK-\\d{2,3})\\.([A-Za-z][A-Za-z0-9_]*)",source)
+            match=re.fullmatch(r"(TASK-\d{2,3})\.([A-Za-z][A-Za-z0-9_]*)",source)
             if not match or match[1] not in indexed:
                 raise ValueError(f"{task['id']}.{item['name']}: unresolved task output {source}")
             producer=next((x for x in indexed[match[1]].get("outputs",[])
