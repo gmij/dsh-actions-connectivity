@@ -160,7 +160,7 @@ def write_delivery(data,destination):
     (destination/'apis').mkdir(exist_ok=True)
     apis={a['id']:a for a in delivery['apis']}
     for a in apis.values():
-        link=f"[{a['id']} · {a['method']} {a['path']}](apis/{a['id']}.md)"; api_index.append('- '+link);module_api[a['module_id']].append('- '+link)
+        link=f"[{a['id']} · {a['method']} {a['path']}](apis/{a['id']}.md)"; api_index.append('- '+link);module_api[a['module_id']].append('- '+link.replace('(apis/', '(../apis/'))
         p=[f"# {a['id']} · {a['title']}\n",f"**{a['method']} `{a['path']}`**\n",f"后端模块：[{a['module_id']}](modules/{a['module_id']}.md)；实现任务：{a['task_id']}\n",'权限：'+a['auth']]
         for k,label in [('path','路径参数'),('query','查询参数'),('body','请求体')]:p+=['\n## '+label+'\n',table(a['request'][k]),'\n示例：\n',json_block(a['request_example'][k])]
         for r in a['responses']:p+=['\n## 响应 '+str(r['status'])+' · '+r['description']+'\n',table(r['schema']),'\n示例：\n',json_block(r['example'])]
@@ -172,7 +172,7 @@ def write_delivery(data,destination):
         bindings += ['\n加载：'+b['loading_behavior'],'\n成功：'+b['success_behavior'],'\n错误：'+b['error_behavior']]
     for c in delivery.get('channels',[]):
         api_index.append('- ['+c['id']+' · '+c['transport']+' · '+c['command']+'](ipc-contracts.md)')
-        module_api[c['module_id']].append('- ['+c['id']+' · '+c['command']+'](ipc-contracts.md)')
+        module_api[c['module_id']].append('- ['+c['id']+' · '+c['command']+'](../ipc-contracts.md)')
         bindings.append('\n## '+c['id']+' · '+c['command']+' ('+c['transport']+')')
         for b in c['bindings']:
             bindings.append('\n### '+b['page_id']+' · '+b['action'])
@@ -184,7 +184,8 @@ def write_delivery(data,destination):
     for m in data['modules']:
         p=destination/'modules'/(m['id']+'.md');body=p.read_text(); old=m['interfaces_markdown'];new='\n\n'.join(module_api[m['id']])+'\n\n[完整接口目录](../api-contracts.md) · [页面参数映射](../frontend-bindings.md)\n\n### 内部程序接口\n\n'+old
         # Root-relative links are used throughout this bundle and rewritten by the Wiki publisher.
-        new=new.replace('../api-contracts.md','api-contracts.md').replace('../frontend-bindings.md','frontend-bindings.md')
+        # Preserve relative links when reading the generated files outside the Wiki renderer.
+        # The Wiki publisher will rewrite these references to flat Wiki page names.
         body=body.replace(old,new);p.write_text(body)
     links='\n\n[逐接口契约](api-contracts.md) · [页面请求与响应映射](frontend-bindings.md)\n'
     for n in ['design.md','ui.md']:
