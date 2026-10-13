@@ -81,6 +81,35 @@ class StagedIpcTests(unittest.TestCase):
             self.assertEqual(calls,['channels-IPC-02'])
             self.assertEqual(len(data['channels']),2)
 
+    def test_integrated_stage_pipeline_switches_to_granular_mode(self):
+        from staged_design import generate_staged
+        data=fixture()
+        entries=[spec('IPC-01','host.delta')]
+        fragments={
+            'core': {'schema_version':2,'level':'overview','summary_markdown':'Summary',
+                     'design_markdown':'Design','experience':{'interaction_mode':'web','rationale':'Chat'},
+                     'milestones':[],'modules':data['modules'],'decisions':[]},
+            'tasks':{'task_records':data['task_records']},
+            'pages':{'page_records':data['page_records']},
+            'apis':{'apis':[]},'bindings':{'bindings':[]},
+            'prototype':{'prototype_html':'<html>stub</html>'}
+        }
+        calls=[]
+        def invoke(prompt,stage):
+            calls.append(stage)
+            if stage=='channels-index':return json.dumps({'channels':entries})
+            if stage=='channels-IPC-01':return json.dumps({'channel':channel(entries[0])})
+            return json.dumps(fragments[stage])
+        with tempfile.TemporaryDirectory() as root:
+            result=json.loads(generate_staged('Issue #11','overview',root,invoke,granular_ipc=True))
+            self.assertEqual(result['delivery']['channels'][0]['id'],'IPC-01')
+            self.assertEqual(calls,['core','tasks','pages','apis','bindings',
+                                    'channels-index','channels-IPC-01','prototype'])
+            self.assertTrue(Path(root,'stage-channels.json').exists())
+            again=json.loads(generate_staged('Issue #11','overview',root,
+                                              lambda *_:self.fail('must resume all stages'),granular_ipc=True))
+            self.assertEqual(again,result)
+
     def test_unmapped_pages_and_unknown_field_fail_closed(self):
         items=[spec('IPC-01','host.snapshot')]
         data=fixture()
