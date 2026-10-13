@@ -154,6 +154,51 @@ def remove_duplicate_ipc_http_bindings(assembled):
     assembled["bindings"] = kept
 
 
+def verify_task_source_types(assembled, out=None):
+    """Validate producer-to-consumer DTOs before IPC generation.
+
+    Fix only explicitly known, non-producer runtime/file inputs. No generic
+    type coercion or inferred output aliasing is permitted.
+    """
+    tasks=assembled.get("task_records",[])
+    if not tasks:
+        return []
+    indexed={t["id"]:t for t in tasks}
+    # (consumer input name, declared DTO) -> authoritative runtime source
+    external={
+        ("permissionRequest","PermissionRequestParams"):"runtime:ACP.session/request_permission",
+        ("projectScope","ProjectScope"):"runtime:ValidatedHost.projectScope",
+        ("projectProfiles","ProjectProfilesFile"):"file:.dsh/ai-profiles.json",
+    }
+    changes=[]
+    for task in tasks:
+        for item in task.get("inputs",[]):
+            source=item.get("source","")
+            if not isinstance(source,str) or not source.startswith("TASK-"):
+                continue
+            match=re.fullmatch(r"(TASK-\d{2,3})\.([A-Za-z][A-Za-z0-9_]*)",source)
+            if not match or match[1] not in indexed:
+                raise ValueError(f"{task['id']}.{item['name']}: unresolved task output {source}")
+            producer=next((x for x in indexed[match[1]].get("outputs",[])
+                           if x["name"]==match[2]),None)
+            if producer is not None and producer["type"]==item["type"]:
+                continue
+            replacement=external.get((item.get("name"),item.get("type")))
+            if replacement is None:
+                raise ValueError(f"{task['id']}.{item['name']}: producer {source} is "
+                                 f"{producer['type'] if producer else 'missing'}, "
+                                 f"consumer expects {item['type']}; targeted repair required")
+            item["source"]=replacement
+            item["validation"]=(item.get("validation","")+"；来源于"+
+                                 replacement+"（不是生产者 "+source+" 的原样 DTO）")
+            changes.append({"task_id":task["id"],"input":item["name"],
+                            "from":source,"to":replacement})
+    if changes and out is not None:
+        (Path(out)/"stage-task-source-repairs.json").write_text(
+            json.dumps({"changes":changes},ensure_ascii=False,indent=2))
+    return changes
+
+
 def generate_staged(original, level, out_dir, invoke, granular_ipc=False):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -245,6 +290,8 @@ def generate_staged(original, level, out_dir, invoke, granular_ipc=False):
         if name == "core" and (fragment.get("level") != level or fragment.get("schema_version") != 2):
             raise ValueError("Invalid design schema/version or level in core stage")
         assembled.update(fragment)
+        if name == 'tasks':
+            verify_task_source_types(assembled,out)
         if not checkpoint.exists():
             checkpoint.write_text(json.dumps(fragment, ensure_ascii=False, indent=2))
     remove_duplicate_ipc_http_bindings(assembled)
