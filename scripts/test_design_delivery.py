@@ -29,6 +29,48 @@ class DeliveryTests(unittest.TestCase):
         with self.assertRaises(ValueError):validate_delivery(d,True)
         d=self.data();d['delivery']['apis'][0]['task_id']='TASK-02'
         with self.assertRaises(ValueError):validate_delivery(d,True)
+    def test_one_way_webview_event_uses_notification_request_fields(self):
+        d=self.data()
+        # The UI consumes a pushed notification. No response/ACK exists.
+        event={'id':'IPC-01','module_id':'MOD-01','task_id':'TASK-01',
+               'transport':'vscode-webview','command':'host.event',
+               'request':obj({'sequence':{'type':'integer','minimum':1},
+                              'payload':obj({'textDelta':{'type':'string'}})}),
+               'request_example':{'sequence':1,'payload':{'textDelta':'hello'}},
+               'response':{'type':'null'},'response_example':None,
+               'error':{'type':'null'},'error_example':None,
+               'bindings':[{'page_id':'UI-01','action':'append model output',
+                            'request_mapping':[],
+                            'response_mapping':[{'source':'sequence','target':'Store.seq'},
+                                                {'source':'payload.textDelta','target':'Chat.append'}],
+                            'loading_behavior':'show streaming',
+                            'error_behavior':'show error',
+                            'success_behavior':'append text'}]}
+        d['delivery']['channels']=[event]
+        validate_delivery(d,True)
+        d['delivery']['channels'][0]['bindings'][0]['response_mapping'][0]['source']='notDeclared'
+        with self.assertRaisesRegex(ValueError,'IPC-01.*notDeclared'):
+            validate_delivery(d,True)
+
+    def test_request_response_channel_still_maps_from_response(self):
+        d=self.data()
+        event={'id':'IPC-01','module_id':'MOD-01','task_id':'TASK-01',
+               'transport':'vscode-webview','command':'chat.send',
+               'request':obj({'message':{'type':'string'}}),
+               'request_example':{'message':'hello'},
+               'response':obj({'ack':{'type':'boolean'}}),
+               'response_example':{'ack':True},
+               'error':{'type':'null'},'error_example':None,
+               'bindings':[{'page_id':'UI-01','action':'submit',
+                            'request_mapping':[{'source':'Composer.text','target':'message'}],
+                            'response_mapping':[{'source':'ack','target':'Composer.sent'}],
+                            'loading_behavior':'loading','error_behavior':'error','success_behavior':'sent'}]}
+        d['delivery']['channels']=[event]
+        validate_delivery(d,True)
+        event['bindings'][0]['response_mapping'][0]['source']='message'
+        with self.assertRaisesRegex(ValueError,'IPC-01.*message'):
+            validate_delivery(d,True)
+
     def test_new_web_delivery_cannot_omit_contracts_or_prototype(self):
         d=self.data();d.pop('delivery')
         with self.assertRaises(ValueError):validate_delivery(d,True)

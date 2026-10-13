@@ -124,9 +124,20 @@ def validate_delivery(data, required=False):
             for mapping in b['request_mapping']:
                 if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['source'],str) or not mapping['source'].strip(): fail('IPC request mapping fields invalid')
                 field_schema(c['request'],mapping['target'])
+            # A one-way host -> Webview event has no response/ACK. Its UI
+            # bindings consume the notification envelope (request payload),
+            # not the null response. This is not a model schema failure.
+            notification = (c['transport'] == 'vscode-webview'
+                            and c['response'].get('type') == 'null'
+                            and c['response_example'] is None)
             for mapping in b['response_mapping']:
-                if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['target'],str) or not mapping['target'].strip(): fail('IPC response mapping fields invalid')
-                field_schema(c['response'],mapping['source'])
+                if not isinstance(mapping,dict) or set(mapping)!={'source','target'} or not isinstance(mapping['target'],str) or not mapping['target'].strip(): fail(c['id']+': IPC response mapping fields invalid')
+                source_schema = c['request'] if notification else c['response']
+                try:
+                    field_schema(source_schema,mapping['source'])
+                except ValueError as exc:
+                    origin = 'notification.request' if notification else 'response'
+                    fail(f"{c['id']} / {b['page_id']} / {b['action']}: invalid {origin} mapping source {mapping['source']!r} -> {mapping['target']!r}; {exc}")
             for field in ('action','loading_behavior','error_behavior','success_behavior'):
                 if not isinstance(b[field],str) or not b[field].strip(): fail('IPC binding behavior required')
             channel_pages.add(b['page_id'])
