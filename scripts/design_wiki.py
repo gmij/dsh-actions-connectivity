@@ -56,6 +56,8 @@ def base(issue, role):
 def rewrite(text, prefix, names):
     def replace(match):
         target = match[2].removeprefix('./')
+        if target.startswith('../'):
+            target = target[3:]
         if target in names:
             return f'[{match[1]}]({prefix}{names[target]})'
         return match[0]
@@ -115,6 +117,8 @@ def assemble(existing, state, repo, issue, run_id, role, raw, preview=None):
                 sidebar += f'  - [{heading}]({p}-{suffix})\n'
         if p + '-APIs.md' in result:
             sidebar += f'  - [逐接口契约]({p}-APIs)\n  - [页面参数映射]({p}-Bindings)\n'
+        if p + '-IPC.md' in result:
+            sidebar += f'  - [IPC 消息契约]({p}-IPC)\n'
         sidebar += f'  - [任务索引与契约]({p}-Tasks)\n  - [设计决策]({p}-Decisions)\n'
         if entry['role'] == 'detailed':
             sidebar += f'  - [概要同步修订]({p}-Overview-Update)\n'
