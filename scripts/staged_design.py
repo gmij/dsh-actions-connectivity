@@ -62,8 +62,39 @@ def stage_prompt(original, name, keys, completed, level):
     }
     # Limit previous context; the stage is explicitly designed as a small MVP.
     previous = json.dumps(completed, ensure_ascii=False)
+    if len(previous) > 50000:
+        # Keep the complete, authoritative documents in checkpoints and output;
+        # only the next stage's reference context needs an abbreviated view.
+        # Preserve all keys, IDs, cross-references and short schema fields.
+        def compact(value, limit):
+            if isinstance(value, str):
+                return value if len(value) <= limit else value[:limit] + "…[abbreviated for next stage]"
+            if isinstance(value, list):
+                return [compact(v, limit) for v in value]
+            if isinstance(value, dict):
+                return {k: compact(v, limit) for k, v in value.items()}
+            return value
+        for limit in (320, 160, 80, 32):
+            previous = json.dumps(compact(completed, limit), ensure_ascii=False)
+            if len(previous) <= 50000:
+                break
+    if len(previous) > 50000:
+        # Very large generated arrays are summarized as lightweight references,
+        # never discarded from assembled design or the stage artifacts.
+        def references(value):
+            if isinstance(value, list):
+                return [references(v) for v in value]
+            if isinstance(value, dict):
+                important = ("id", "module_id", "task_id", "page_id", "name", "title",
+                             "transport", "command", "method", "path", "depends_on",
+                             "task_ids", "module_ids", "api_id", "channel_id", "action")
+                return {k: references(v) for k, v in value.items() if k in important}
+            if isinstance(value, str):
+                return value[:120]
+            return value
+        previous = json.dumps(references(completed), ensure_ascii=False)
     if len(previous) > 85000:
-        raise ValueError("Stage context exceeds 85000 characters; narrow MVP before continuing")
+        raise ValueError("Stage references exceed 85000 characters; split the MVP into separately linked issues")
     expected = list(keys) + (["overview_update_markdown"] if name == "core" and level == "detailed" else [])
     return (original + preface + "\n当前阶段：" + name + "\n当前顶层字段只能是：" +
             json.dumps(expected, ensure_ascii=False) + "\n" + guide[name] +
