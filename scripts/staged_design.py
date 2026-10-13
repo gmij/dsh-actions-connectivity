@@ -114,7 +114,7 @@ def parse_stage_json(response):
         value = match.group(1).strip()
     return json.loads(value)
 
-def generate_staged(original, level, out_dir, invoke):
+def generate_staged(original, level, out_dir, invoke, granular_ipc=False):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     assembled = {}
@@ -122,6 +122,9 @@ def generate_staged(original, level, out_dir, invoke):
         checkpoint = out / ("stage-" + name + ".json")
         if checkpoint.exists():
             fragment = json.loads(checkpoint.read_text())
+        elif name == 'channels' and granular_ipc:
+            from ipc_stages import generate_channels
+            fragment = generate_channels(original, assembled, out, invoke)
         else:
             prompt = stage_prompt(original, name, fields, assembled, level)
             response = invoke(prompt, name)
