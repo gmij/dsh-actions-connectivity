@@ -288,7 +288,8 @@ def run():
         from staged_design import generate_staged
         answer = generate_staged(
             prompt, metadata["config"]["design_level"], OUT,
-            lambda stage_prompt, stage: invoke_dsh(args, stage_prompt, 900, prefix=f"stage-{stage}-"))
+            lambda stage_prompt, stage: invoke_dsh(args, stage_prompt, 900, prefix=f"stage-{stage}-"),
+            granular_ipc=os.environ.get('DSH_GRANULAR_IPC') == '1')
     elif metadata["config"]["mode"] == "prototype":
         from staged_prototype import generate_prototype
         answer = generate_prototype(prompt, OUT,
