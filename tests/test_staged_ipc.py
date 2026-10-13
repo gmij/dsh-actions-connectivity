@@ -127,6 +127,31 @@ class StagedIpcTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'unknown'):
             validate_one(c,item,fixture())
 
+    def test_ipc04_inverted_notification_ui_bindings_are_corrected(self):
+        from ipc_stages import normalize_notification_paths
+        item=spec('IPC-04','permission.request')
+        c=channel(item)
+        c['request']['properties']['options']={'type':'array',
+            'items':{'type':'object','properties':{'optionId':{'type':'string'}},
+                     'required':['optionId'],'additionalProperties':False}}
+        c['request']['required'].append('options')
+        c['request_example']['options']=[{'optionId':'allow_once'}]
+        b=c['bindings'][0]
+        b['request_mapping']=[
+            {'target':'state.pendingPermission.requestId','source':'request.sequence'},
+            {'target':'ui.optionButtons[].optionId','source':'request.options[].optionId'}]
+        b['response_mapping']=[]
+        normalize_notification_paths(c)
+        self.assertEqual(b['request_mapping'],[])
+        self.assertEqual(b['response_mapping'],[
+            {'source':'sequence','target':'state.pendingPermission.requestId'},
+            {'source':'options[].optionId','target':'ui.optionButtons[].optionId'}])
+        validate_one(c,item,fixture())
+        b['request_mapping']=[{'target':'invalidState','source':'request.notDeclared'}]
+        normalize_notification_paths(c)
+        with self.assertRaises(ValueError):
+            validate_one(c,item,fixture())
+
     def test_unmapped_pages_and_unknown_field_fail_closed(self):
         items=[spec('IPC-01','host.snapshot')]
         data=fixture()

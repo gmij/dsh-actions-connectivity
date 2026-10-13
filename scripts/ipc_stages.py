@@ -52,23 +52,49 @@ def validate_index(items,done):
         raise ValueError(f"IPC index: unmapped pages {sorted(pages-covered)}, extra {sorted(covered-pages)}")
 
 def normalize_notification_paths(channel):
-    """Strip a redundant request. prefix only for fields proven in request schema."""
+    """Canonicalize verified one-way Host-to-Webview event field bindings."""
     if not isinstance(channel, dict) or channel.get("transport") != "vscode-webview":
         return channel
     if channel.get("response") != {"type": "null"} or channel.get("response_example", "missing") is not None:
         return channel
     from design_delivery import field_schema
+    def relative_field(source):
+        if not isinstance(source,str):
+            return None
+        candidate=source.removeprefix("request.")
+        try:
+            field_schema(channel["request"],candidate)
+        except (ValueError,TypeError,KeyError):
+            return None
+        return candidate
     for binding in channel.get("bindings", []):
-        for mapping in binding.get("response_mapping", []):
-            source = mapping.get("source")
-            if not isinstance(source, str) or not source.startswith("request."):
+        moved=[]
+        retained=[]
+        for mapping in binding.get("request_mapping", []):
+            target=mapping.get("target")
+            source=mapping.get("source")
+            # Only reverse direction when target is provably NOT a request
+            # field and source points to a real notification payload field.
+            if isinstance(target,str) and relative_field(target) is None:
+                field=relative_field(source)
+                if field is not None:
+                    moved.append({"source":field,"target":target})
+                    continue
+            retained.append(mapping)
+        binding["request_mapping"]=retained
+        seen=set()
+        canonical=[]
+        for mapping in binding.get("response_mapping",[])+moved:
+            item=dict(mapping)
+            field=relative_field(item.get("source"))
+            if field is not None:
+                item["source"]=field
+            pair=(item.get("source"),item.get("target"))
+            if pair in seen:
                 continue
-            relative = source[len("request."):]
-            try:
-                field_schema(channel["request"], relative)
-            except (ValueError, TypeError, KeyError):
-                continue
-            mapping["source"] = relative
+            seen.add(pair)
+            canonical.append(item)
+        binding["response_mapping"]=canonical
     return channel
 
 
