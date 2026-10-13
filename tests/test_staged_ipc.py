@@ -110,6 +110,23 @@ class StagedIpcTests(unittest.TestCase):
                                               lambda *_:self.fail('must resume all stages'),granular_ipc=True))
             self.assertEqual(again,result)
 
+    def test_actual_detailed_ipc03_notification_prefixes_are_canonicalized(self):
+        from ipc_stages import normalize_notification_paths
+        item=spec('IPC-03','session.update')
+        c=channel(item)
+        b=c['bindings'][0]
+        b['response_mapping']=[
+            {'source':'request.sequence','target':'Chat.order'},
+            {'source':'request.payload.text','target':'Chat.append'}]
+        normalize_notification_paths(c)
+        self.assertEqual([m['source'] for m in b['response_mapping']],
+                         ['sequence','payload.text'])
+        validate_one(c,item,fixture())
+        b['response_mapping'][0]['source']='request.unknown'
+        normalize_notification_paths(c)
+        with self.assertRaisesRegex(ValueError,'unknown'):
+            validate_one(c,item,fixture())
+
     def test_unmapped_pages_and_unknown_field_fail_closed(self):
         items=[spec('IPC-01','host.snapshot')]
         data=fixture()
