@@ -61,6 +61,42 @@ class StagedDesignTests(unittest.TestCase):
         remove_duplicate_ipc_http_bindings(doc)
         self.assertEqual(len(doc['bindings']),1)
 
+    def test_known_external_task_inputs_are_repaired_before_ipc(self):
+        from staged_design import verify_task_source_types
+        tasks=[
+          {'id':'TASK-01','outputs':[{'name':'protocolEvidence','type':'ProtocolEvidenceV1'}],
+           'inputs':[]},
+          {'id':'TASK-02','outputs':[{'name':'hostController','type':'AcpHostControllerApi'}],
+           'inputs':[]},
+          {'id':'TASK-04','outputs':[],'inputs':[{'name':'permissionRequest',
+                  'type':'PermissionRequestParams','source':'TASK-01.protocolEvidence','validation':'valid'}]},
+          {'id':'TASK-05','outputs':[],'inputs':[{'name':'projectScope',
+                  'type':'ProjectScope','source':'TASK-02.hostController','validation':'valid'}]},
+          {'id':'TASK-06','outputs':[],'inputs':[{'name':'projectProfiles',
+                  'type':'ProjectProfilesFile','source':'TASK-02.hostController','validation':'valid'}]}
+        ]
+        doc={'task_records':tasks}
+        with tempfile.TemporaryDirectory() as directory:
+            changes=verify_task_source_types(doc,directory)
+            self.assertEqual(len(changes),3)
+            self.assertEqual(tasks[2]['inputs'][0]['source'],
+                'runtime:ACP.session/request_permission')
+            self.assertEqual(tasks[3]['inputs'][0]['source'],
+                'runtime:ValidatedHost.projectScope')
+            self.assertEqual(tasks[4]['inputs'][0]['source'],
+                'file:.dsh/ai-profiles.json')
+            self.assertEqual(verify_task_source_types(doc,directory),[])
+            self.assertTrue(Path(directory,'stage-task-source-repairs.json').exists())
+
+    def test_unknown_task_type_mismatch_is_rejected_before_ipc(self):
+        from staged_design import verify_task_source_types
+        doc={'task_records':[
+          {'id':'TASK-01','outputs':[{'name':'a','type':'SomeDTO'}],'inputs':[]},
+          {'id':'TASK-02','outputs':[],'inputs':[{'name':'unrelated',
+                'type':'OtherDTO','source':'TASK-01.a','validation':'valid'}]}]}
+        with self.assertRaisesRegex(ValueError,'targeted repair required'):
+            verify_task_source_types(doc)
+
     def test_json_code_fence(self):
         self.assertEqual(parse_stage_json('```json\n{"core":true}\n```'), {'core': True})
         self.assertEqual(parse_stage_json('```JSON\r\n{"core":true}\r\n```'), {'core': True})
