@@ -193,6 +193,26 @@ def verify_task_source_types(assembled, out=None):
                                  replacement+"（不是生产者 "+source+" 的原样 DTO）")
             changes.append({"task_id":task["id"],"input":item["name"],
                             "from":source,"to":replacement})
+    # Core decisions and task_records are generated in separate stages.
+    # Reconcile both explicitly declared sides; never invent a new decision
+    # or task identifier and fail closed if either reference is unknown.
+    decisions={d["id"]:d for d in assembled.get("decisions",[])}
+    for d in decisions.values():
+        for tid in d.get("tasks",[]):
+            if tid not in indexed:
+                raise ValueError(f"Decision {d['id']}: unknown task {tid}")
+            if d["id"] not in indexed[tid]["patterns"]:
+                indexed[tid]["patterns"].append(d["id"])
+                changes.append({"task_id":tid,"decision":d["id"],
+                                "repair":"add task-side reciprocal link"})
+    for task in tasks:
+        for did in task.get("patterns",[]):
+            if did not in decisions:
+                raise ValueError(f"{task['id']}: unknown decision {did}")
+            if task["id"] not in decisions[did]["tasks"]:
+                decisions[did]["tasks"].append(task["id"])
+                changes.append({"task_id":task["id"],"decision":did,
+                                "repair":"add decision-side reciprocal link"})
     if changes and out is not None:
         (Path(out)/"stage-task-source-repairs.json").write_text(
             json.dumps({"changes":changes},ensure_ascii=False,indent=2))
