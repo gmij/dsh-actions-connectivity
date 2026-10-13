@@ -133,7 +133,7 @@ def remove_duplicate_ipc_http_bindings(assembled):
             continue
         action = b["action"]
         linked = None
-        match = re.search(r"IPC-\\d{2,3}", action)
+        match = re.search(r"IPC-\d{2,3}", action)
         if match:
             linked = by_id.get(match.group(0))
         elif "session/update" in action and ("推送" in action or "事件" in action):
