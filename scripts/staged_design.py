@@ -58,7 +58,7 @@ def stage_prompt(original, name, keys, completed, level):
                     "对于 Host→Webview 单向事件：request 为推送事件信封，response 和 error 可为 type=null、示例 null；"
                     "bindings.response_mapping 的 source 应指向 request 中真实事件字段（如 sequence/payload.textDelta），"
                     "因为通知没有响应消息。普通有响应通道的 response_mapping.source 才指向 response schema。"
-                    "禁止把 UI 消费的推送事件字段虚构到 null response 中。",
+                    "禁止把 UI 消费的推送事件字段虚构到 null response 中。"
                     "非 HTTP 交互必须在这里定义，不得用空 channels 掩盖缺失契约。",
         "prototype": "仅输出 prototype_html 字符串，必要时生成可本地运行的离线交互 HTML。"
                      "不要把 HTML 和 API Schema 放在一个 JSON 回复里。"
