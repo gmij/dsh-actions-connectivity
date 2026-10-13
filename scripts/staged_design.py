@@ -114,6 +114,46 @@ def parse_stage_json(response):
         value = match.group(1).strip()
     return json.loads(value)
 
+def remove_duplicate_ipc_http_bindings(assembled):
+    """Remove only provably duplicate event/IPC bindings mislabeled as HTTP.
+
+    Never synthesize missing HTTP request fields or remove a sole real API
+    binding. Genuine HTTP actions still fail strict delivery validation.
+    """
+    bindings = assembled.get("bindings", [])
+    channels = assembled.get("channels", [])
+    apis = assembled.get("apis", [])
+    if not isinstance(bindings, list) or not isinstance(channels, list):
+        return
+    by_id = {c["id"]: c for c in channels if isinstance(c, dict) and "id" in c}
+    kept = []
+    for b in bindings:
+        if not isinstance(b, dict) or not isinstance(b.get("action"), str):
+            kept.append(b)
+            continue
+        action = b["action"]
+        linked = None
+        match = re.search(r"IPC-\d{2,3}", action)
+        if match:
+            linked = by_id.get(match.group(0))
+        elif "session/update" in action and ("推送" in action or "事件" in action):
+            linked = next((c for c in channels if c.get("command") in
+                           ("session.update", "session/update")), None)
+        if linked is not None and any(
+                x.get("page_id") == b.get("page_id")
+                for x in linked.get("bindings", [])):
+            # Only the non-HTTP event/cancel action is redundant. Another
+            # binding must still own the actual HTTP API.
+            other = [x for x in bindings if x is not b and
+                     x.get("api_id") == b.get("api_id")]
+            api_exists = any(x.get("id") == b.get("api_id") for x in apis)
+            is_non_http = ("推送" in action or "无 HTTP" in action)
+            if other and api_exists and is_non_http:
+                continue
+        kept.append(b)
+    assembled["bindings"] = kept
+
+
 def generate_staged(original, level, out_dir, invoke, granular_ipc=False):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -207,5 +247,6 @@ def generate_staged(original, level, out_dir, invoke, granular_ipc=False):
         assembled.update(fragment)
         if not checkpoint.exists():
             checkpoint.write_text(json.dumps(fragment, ensure_ascii=False, indent=2))
+    remove_duplicate_ipc_http_bindings(assembled)
     assembled["delivery"] = {key: assembled.pop(key) for key in ("apis", "bindings", "channels", "prototype_html")}
     return json.dumps(assembled, ensure_ascii=False)
